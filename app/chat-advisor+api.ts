@@ -52,7 +52,7 @@ ONLY JSON response.`;
 
     // Get Ollama configuration
     const ollamaUrl = process.env.EXPO_PUBLIC_OLLAMA_URL || 'http://127.0.0.1:11434';
-    const ollamaModel = process.env.EXPO_PUBLIC_OLLAMA_MODEL || 'tinyllama:latest';
+    const ollamaModel = process.env.EXPO_PUBLIC_OLLAMA_MODEL || 'llama3.2:3b';
 
     console.log('🤖 Attempting to connect to:', ollamaUrl);
     console.log('🎯 Using model:', ollamaModel);

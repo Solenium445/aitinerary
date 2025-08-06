@@ -45,7 +45,7 @@ Respond in JSON format:
 
     // Get Ollama configuration - FIXED
     const ollamaUrl = process.env.EXPO_PUBLIC_OLLAMA_URL || 'http://127.0.0.1:11434';
-    const ollamaModel = process.env.EXPO_PUBLIC_OLLAMA_MODEL || 'mistral:7b';
+    const ollamaModel = process.env.EXPO_PUBLIC_OLLAMA_MODEL || 'llama3.2:3b';
 
     try {
       const ollamaResponse = await fetch(`${ollamaUrl}/api/generate`, {

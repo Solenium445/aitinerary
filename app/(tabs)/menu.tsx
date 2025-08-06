@@ -157,7 +157,7 @@ export default function MenuScreen() {
         <View style={styles.appInfoSection}>
           <View style={styles.appInfoCard}>
             <Compass size={24} color="#667eea" />
-            <Text style={styles.appInfoTitle}>TravelMate</Text>
+            <Text style={styles.appInfoTitle}>AItinerary</Text>
             <Text style={styles.appInfoDescription}>
               Your complete travel companion with AI-powered recommendations, 
               offline tools, and personalized itineraries.

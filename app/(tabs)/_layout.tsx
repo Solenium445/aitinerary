@@ -2,7 +2,13 @@ import { Tabs } from 'expo-router';
 import { useAuth } from '@/contexts/AuthContext';
 import { router } from 'expo-router';
 import { useEffect } from 'react';
-import { MapPin, Calendar, MessageCircle, Menu, Plane } from 'lucide-react-native';
+import {
+  MapPin,
+  Calendar,
+  MessageCircle,
+  Menu,
+  Plane,
+} from 'lucide-react-native';
 
 export default function TabLayout() {
   const { user, loading } = useAuth();
@@ -14,11 +20,7 @@ export default function TabLayout() {
     }
   }, [user, loading]);
 
-  if (loading) {
-    return null;
-  }
-  
-  if (!user) {
+  if (loading || !user) {
     return null;
   }
 
@@ -40,101 +42,53 @@ export default function TabLayout() {
           fontSize: 11,
           fontWeight: '600',
         },
-      }}>
+      }}
+    >
       <Tabs.Screen
         name="index"
         options={{
           title: 'Plan Trip',
-          tabBarIcon: ({ size, color }) => (
-            <MapPin size={size} color={color} />
-          ),
+          tabBarIcon: ({ size, color }) => <MapPin size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="itinerary"
         options={{
           title: 'My Trip',
-          tabBarIcon: ({ size, color }) => (
-            <Calendar size={size} color={color} />
-          ),
+          tabBarIcon: ({ size, color }) => <Calendar size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="advisor"
         options={{
           title: 'AI Chat',
-          tabBarIcon: ({ size, color }) => (
-            <MessageCircle size={size} color={color} />
-          ),
+          tabBarIcon: ({ size, color }) => <MessageCircle size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="menu"
         options={{
-          title: 'Hidden Gems',
-          tabBarIcon: ({ size, color }) => (
-            <Menu size={size} color={color} />
-          ),
+          title: 'More',
+          tabBarIcon: ({ size, color }) => <Menu size={size} color={color} />,
         }}
       />
       <Tabs.Screen
         name="flights"
         options={{
           title: 'Flights',
-          tabBarIcon: ({ size, color }) => (
-            <Plane size={size} color={color} />
-          ),
+          tabBarIcon: ({ size, color }) => <Plane size={size} color={color} />,
         }}
       />
-      {/* Hide other tabs from bottom navigation */}
-      <Tabs.Screen
-        name="profile"
-        options={{
-          href: null, // This hides it from tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="tools"
-        options={{
-          href: null, // This hides it from tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="social"
-        options={{
-          href: null, // This hides it from tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="budget"
-        options={{
-          href: null, // This hides it from tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="documents"
-        options={{
-          href: null, // This hides it from tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="journal"
-        options={{
-          href: null, // This hides it from tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="explore"
-        options={{
-          href: null, // This hides it from tab bar
-        }}
-      />
-      <Tabs.Screen
-        name="companion"
-        options={{
-          href: null, // This hides it from tab bar
-        }}
-      />
+      {/* Hidden Tabs */}
+      <Tabs.Screen name="profile" options={{ href: null }} />
+      <Tabs.Screen name="tools" options={{ href: null }} />
+      <Tabs.Screen name="social" options={{ href: null }} />
+      <Tabs.Screen name="budget" options={{ href: null }} />
+      <Tabs.Screen name="documents" options={{ href: null }} />
+      <Tabs.Screen name="journal" options={{ href: null }} />
+      <Tabs.Screen name="explore" options={{ href: null }} />
+      <Tabs.Screen name="companion" options={{ href: null }} />
     </Tabs>
   );
 }
+

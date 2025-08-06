@@ -11,10 +11,11 @@ import {
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
 import { MapPin, Calendar, DollarSign, Users, Heart, Sun, Camera, TreePine, Utensils, Music, Loader, Accessibility, Armchair as Wheelchair, UserCheck, Route, Map as MapIcon } from 'lucide-react-native';
-import { router } from 'expo-router';
 import DatePicker from '@/components/DatePicker';
 import { useAuth } from '@/contexts/AuthContext';
 import { useUserItineraries, useUserPreferences } from '@/hooks/useUserData';
+import { saveItinerary } from '@/utils/storage';
+import { router } from 'expo-router';
 
 const interests = [
   { id: 'beaches', label: 'Beaches', icon: Sun },
@@ -173,27 +174,38 @@ export default function SetupScreen() {
         }
         
         // Also save to localStorage for immediate access
-        if (typeof localStorage !== 'undefined' && result.itinerary) {
+        if (result.itinerary) {
+          console.log('🚀 FORCE SAVING new itinerary to replace any previous data...');
+          
           const completeItinerary = {
             ...result.itinerary,
             destination: tripData.destination,
             location: tripData.destination,
             startDate: tripData.startDate,
             endDate: tripData.endDate,
+            generatedAt: new Date().toISOString(),
+            isNewGeneration: true, // Flag this as a fresh generation
+            replaces: 'all_previous' // Clear indicator this replaces everything
           };
+          
+          console.log('💾 FORCE SAVING new itinerary (will clear previous)...');
           try {
-            localStorage.setItem('currentItinerary', JSON.stringify(completeItinerary));
-            localStorage.setItem('latestItinerary', JSON.stringify(completeItinerary));
-            console.log('💾 Saved itinerary to localStorage and backup');
+            const { saveItinerary: saveItineraryUtil } = await import('@/utils/storage');
+            const storageSuccess = await saveItineraryUtil(completeItinerary);
+            if (storageSuccess) {
+              console.log('✅ NEW itinerary FORCE SAVED successfully');
+              console.log('🎯 Latest itinerary details:', {
+                destination: completeItinerary.destination,
+                days: completeItinerary.days?.length,
+                generatedAt: completeItinerary.generatedAt,
+                replaces: completeItinerary.replaces
+              });
+            } else {
+              console.log('⚠️ Platform storage save failed, but continuing...');
+            }
           } catch (storageError) {
-            console.warn('⚠️ localStorage not available, using memory storage');
-            // Store in global variable as fallback
-            (global as any).currentItinerary = completeItinerary;
+            console.error('❌ Platform storage error:', storageError);
           }
-        } else {
-          console.warn('⚠️ localStorage not available, using memory storage');
-          // Store in global variable as fallback
-          (global as any).currentItinerary = result.itinerary;
         }
         
         setGenerationStatus('Finalizing recommendations...');

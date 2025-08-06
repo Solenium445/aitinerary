@@ -1,4 +1,5 @@
 import React, { useState, useRef, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -8,6 +9,7 @@ import {
   StyleSheet,
   KeyboardAvoidingView,
   Platform,
+  Animated,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
@@ -24,8 +26,12 @@ import {
   Lightbulb,
   Camera,
   Utensils,
-  Settings
+  Settings,
+  Calendar
 } from 'lucide-react-native';
+import { useAuth } from '@/contexts/AuthContext';
+import { useUserItineraries } from '@/hooks/useUserData';
+import { loadItinerary } from '@/utils/storage';
 
 interface Message {
   id: string;
@@ -35,63 +41,312 @@ interface Message {
   suggestions?: string[];
 }
 
-const quickQuestions = [
-  {
-    id: 'weather',
-    text: 'What\'s the weather like?',
-    icon: '🌤️',
-  },
-  {
-    id: 'food',
-    text: 'Best local restaurants?',
-    icon: '🍽️',
-  },
-  {
-    id: 'transport',
-    text: 'How to get around?',
-    icon: '🚇',
-  },
-  {
-    id: 'safety',
-    text: 'Safety tips?',
-    icon: '🛡️',
-  },
-  {
-    id: 'culture',
-    text: 'Local customs?',
-    icon: '🎭',
-  },
-  {
-    id: 'hidden',
-    text: 'Hidden gems?',
-    icon: '💎',
-  },
-];
+interface TripInfo {
+  destination: string;
+  duration: number;
+  totalCost: number;
+  startDate: string;
+  daysUntil: number;
+}
 
 export default function AdvisorScreen() {
+  const { user, profile } = useAuth();
+  const { itineraries } = useUserItineraries();
   const [messages, setMessages] = useState<Message[]>([
-    {
-      id: '1',
-      text: 'Hello! I\'m your personal travel advisor. I can help you with recommendations, answer questions about your itinerary, suggest local experiences, and provide travel tips. What would you like to know?',
-      isUser: false,
-      timestamp: new Date(),
-      suggestions: [
-        'Tell me about local food',
-        'What should I pack?',
-        'Best photo spots?',
-        'Cultural etiquette tips',
-      ],
-    },
   ]);
   const [inputText, setInputText] = useState('');
   const [isLoading, setIsLoading] = useState(false);
   const [showDebug, setShowDebug] = useState(false);
+  const [welcomeMessageAdded, setWelcomeMessageAdded] = useState(false);
+  const [tripInfo, setTripInfo] = useState<TripInfo | null>(null);
+  const [greetingText, setGreetingText] = useState<string>('');
+  const welcomeOpacity = useRef(new Animated.Value(0)).current;
+  const welcomeSlideY = useRef(new Animated.Value(20)).current;
+  const greetingOpacity = useRef(new Animated.Value(0)).current;
+  const greetingSlideY = useRef(new Animated.Value(10)).current;
   const scrollViewRef = useRef<ScrollView>(null);
+  const [quickQuestions, setQuickQuestions] = useState([
+    {
+      id: 'weather',
+      text: 'What\'s the weather like?',
+      icon: '🌤️',
+    },
+    {
+      id: 'food',
+      text: 'Best local restaurants?',
+      icon: '🍽️',
+    },
+    {
+      id: 'transport',
+      text: 'How to get around?',
+      icon: '🚇',
+    },
+    {
+      id: 'safety',
+      text: 'Safety tips?',
+      icon: '🛡️',
+    },
+  ]);
 
   useEffect(() => {
-    // Auto-scroll to bottom when new messages are added
+    loadTripDataForWelcome();
+  }, [profile]); // Reload when profile changes
+
+  // Add focus effect to reload data when tab becomes active
+  useFocusEffect(
+    React.useCallback(() => {
+      console.log('🎯 Advisor screen focused, reloading trip data...');
+      loadTripDataForWelcome();
+    }, [])
+  );
+
+  const loadTripDataForWelcome = async () => {
+    try {
+      console.log('🔍 Loading trip data for AI advisor...');
+      
+      // Force reload from storage to get the latest itinerary
+      const savedItinerary = await loadItinerary();
+      console.log('📱 Advisor loading itinerary:', savedItinerary?.destination || 'No destination found');
+      
+      if (savedItinerary) {
+        console.log('📱 Found trip data in storage:', savedItinerary.destination || savedItinerary.location);
+        
+        const startDate = new Date(savedItinerary.startDate || savedItinerary.days?.[0]?.date);
+        const endDate = new Date(savedItinerary.endDate || savedItinerary.days?.[savedItinerary.days.length - 1]?.date);
+        const today = new Date();
+        const daysUntilTrip = Math.ceil((startDate.getTime() - today.getTime()) / (1000 * 60 * 60 * 24));
+        const tripDuration = Math.ceil((endDate.getTime() - startDate.getTime()) / (1000 * 60 * 60 * 24)) || savedItinerary.days?.length || 1;
+        const totalCost = savedItinerary.total_estimated_cost_gbp || 0;
+        
+        setTripInfo({
+          destination: savedItinerary.destination || savedItinerary.location || 'Your Destination',
+          duration: tripDuration,
+          totalCost: totalCost,
+          startDate: savedItinerary.startDate || savedItinerary.days?.[0]?.date,
+          daysUntil: daysUntilTrip,
+        });
+        
+        // Generate personalized greeting
+        const userName = profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : '';
+        let greeting = '';
+        
+        const destinationName = savedItinerary.destination || savedItinerary.location || 'Your Destination';
+        console.log('🎯 Using destination for greeting:', destinationName);
+        
+        if (daysUntilTrip > 0) {
+          greeting = `Welcome${userName}! You're off to **${destinationName}** in just **${daysUntilTrip} day${daysUntilTrip !== 1 ? 's' : ''}** — let's start planning the little details together.`;
+        } else if (daysUntilTrip === 0) {
+          greeting = `Welcome${userName}! Your **${destinationName}** adventure starts TODAY! I'm here to help with any last-minute questions or local tips.`;
+        } else {
+          greeting = `Welcome back${userName}! Hope you're enjoying **${destinationName}**! I'm here to help with recommendations and answer any questions about your trip.`;
+        }
+        
+        setGreetingText(greeting);
+        console.log('✅ Trip data loaded for AI advisor');
+        
+        // Generate personalized quick questions
+        generatePersonalizedQuestions(destinationName, daysUntilTrip);
+        return;
+      }
+      
+      // Fallback if no trip data
+      const userName = profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : '';
+      setGreetingText(`Hey there${userName}! Ready to plan something magical?`);
+      console.log('ℹ️ No trip data found, using default greeting');
+      
+    } catch (error) {
+      console.error('❌ Error loading trip data for advisor:', error);
+      const userName = profile?.full_name ? `, ${profile.full_name.split(' ')[0]}` : '';
+      setGreetingText(`Hey there${userName}! Ready to plan something magical?`);
+    }
+  };
+
+  const generatePersonalizedQuestions = (destination: string, daysUntil: number) => {
+    const destLower = destination.toLowerCase();
+    const personalizedQuestions = [];
+    
+    // Weather question - always personalized
+    personalizedQuestions.push({
+      id: 'weather',
+      text: `Weather in ${destination.split(',')[0]}?`,
+      icon: '🌤️',
+    });
+    
+    // Food question - personalized by destination
+    if (destLower.includes('spain') || destLower.includes('barcelona') || destLower.includes('madrid')) {
+      personalizedQuestions.push({
+        id: 'food',
+        text: 'Best tapas bars?',
+        icon: '🥘',
+      });
+    } else if (destLower.includes('italy') || destLower.includes('rome') || destLower.includes('florence')) {
+      personalizedQuestions.push({
+        id: 'food',
+        text: 'Authentic pasta places?',
+        icon: '🍝',
+      });
+    } else if (destLower.includes('france') || destLower.includes('paris')) {
+      personalizedQuestions.push({
+        id: 'food',
+        text: 'Best bistros & cafés?',
+        icon: '🥐',
+      });
+    } else {
+      personalizedQuestions.push({
+        id: 'food',
+        text: `Local food in ${destination.split(',')[0]}?`,
+        icon: '🍽️',
+      });
+    }
+    
+    // Transport question - personalized by destination
+    if (destLower.includes('london')) {
+      personalizedQuestions.push({
+        id: 'transport',
+        text: 'Tube vs bus tips?',
+        icon: '🚇',
+      });
+    } else if (destLower.includes('paris')) {
+      personalizedQuestions.push({
+        id: 'transport',
+        text: 'Metro navigation?',
+        icon: '🚇',
+      });
+    } else if (destLower.includes('barcelona')) {
+      personalizedQuestions.push({
+        id: 'transport',
+        text: 'Metro vs walking?',
+        icon: '🚇',
+      });
+    } else {
+      personalizedQuestions.push({
+        id: 'transport',
+        text: `Getting around ${destination.split(',')[0]}?`,
+        icon: '🚇',
+      });
+    }
+    
+    // Time-sensitive questions based on days until trip
+    if (daysUntil > 7) {
+      personalizedQuestions.push({
+        id: 'planning',
+        text: 'What to book in advance?',
+        icon: '📅',
+      });
+    } else if (daysUntil > 0) {
+      personalizedQuestions.push({
+        id: 'packing',
+        text: 'What should I pack?',
+        icon: '🧳',
+      });
+    } else {
+      personalizedQuestions.push({
+        id: 'current',
+        text: 'What to do right now?',
+        icon: '⭐',
+      });
+    }
+    
+    // Destination-specific cultural question
+    if (destLower.includes('japan')) {
+      personalizedQuestions.push({
+        id: 'culture',
+        text: 'Japanese etiquette?',
+        icon: '🎌',
+      });
+    } else if (destLower.includes('spain')) {
+      personalizedQuestions.push({
+        id: 'culture',
+        text: 'Spanish customs?',
+        icon: '💃',
+      });
+    } else if (destLower.includes('italy')) {
+      personalizedQuestions.push({
+        id: 'culture',
+        text: 'Italian dining rules?',
+        icon: '🇮🇹',
+      });
+    } else {
+      personalizedQuestions.push({
+        id: 'culture',
+        text: `${destination.split(',')[0]} customs?`,
+        icon: '🎭',
+      });
+    }
+    
+    // Hidden gems - always personalized
+    personalizedQuestions.push({
+      id: 'hidden',
+      text: `Hidden gems in ${destination.split(',')[0]}?`,
+      icon: '💎',
+    });
+    
+    setQuickQuestions(personalizedQuestions);
+    console.log('✅ Generated personalized questions for', destination);
+  };
+
+  useEffect(() => {
     scrollViewRef.current?.scrollToEnd({ animated: true });
   }, [messages]);
+
+  useEffect(() => {
+    // Simple welcome message - no complex logic
+    if (!welcomeMessageAdded && greetingText) {
+      setWelcomeMessageAdded(true);
+    }
+  }, [greetingText, welcomeMessageAdded]);
+
+  useEffect(() => {
+    // Animate welcome message when it's added
+    if (messages.length > 0 && !messages[0].isUser) {
+      Animated.parallel([
+        Animated.timing(welcomeOpacity, {
+          toValue: 1,
+          duration: 800,
+          useNativeDriver: true,
+        }),
+        Animated.timing(welcomeSlideY, {
+          toValue: 0,
+          duration: 600,
+          useNativeDriver: true,
+        }),
+      ]).start();
+    }
+  }, [messages]);
+
+  useEffect(() => {
+    // Animate greeting when it appears
+    if (greetingText) {
+      setTimeout(() => {
+        Animated.parallel([
+          Animated.timing(greetingOpacity, {
+            toValue: 1,
+            duration: 500,
+            useNativeDriver: true,
+          }),
+          Animated.timing(greetingSlideY, {
+            toValue: 0,
+            duration: 400,
+            useNativeDriver: true,
+          }),
+        ]).start();
+      }, 200); // Quick delay after header
+    }
+  }, [greetingText]);
+
+
+  const formatDate = (dateString: string) => {
+    try {
+      const date = new Date(dateString);
+      return date.toLocaleDateString('en-GB', {
+        weekday: 'long',
+        day: 'numeric',
+        month: 'long',
+      });
+    } catch {
+      return '';
+    }
+  };
 
   const testConnection = async () => {
     try {
@@ -145,7 +400,7 @@ export default function AdvisorScreen() {
           message: text.trim(),
           conversationHistory: messages.slice(-5), // Send last 5 messages for context
           userProfile: {
-            destination: 'Barcelona', // This would come from user's trip data
+            destination: tripInfo?.destination || 'Current location',
             interests: ['food', 'culture', 'photography'],
             budget: 'mid-range',
             group: 'couple',
@@ -218,7 +473,7 @@ export default function AdvisorScreen() {
         </Text>
       </View>
       
-      <View style={[
+      <Animated.View style={[
         styles.messageBubble,
         message.isUser ? styles.userBubble : styles.advisorBubble,
       ]}>
@@ -228,7 +483,7 @@ export default function AdvisorScreen() {
         ]}>
           {message.text}
         </Text>
-      </View>
+      </Animated.View>
 
       {message.suggestions && message.suggestions.length > 0 && (
         <View style={styles.suggestionsContainer}>
@@ -247,17 +502,36 @@ export default function AdvisorScreen() {
     </View>
   );
 
+  const renderGreeting = () => {
+    if (!greetingText) return null;
+
+    return (
+      <Animated.View style={[
+        styles.greetingContainer,
+        {
+          opacity: greetingOpacity,
+          transform: [{ translateY: greetingSlideY }],
+        },
+      ]}>
+        <Text style={styles.greetingText}>{greetingText}</Text>
+        {tripInfo && tripInfo.daysUntil > 0 && (
+          <Text style={styles.greetingSubtext}>
+            {formatDate(tripInfo.startDate)}
+          </Text>
+        )}
+      </Animated.View>
+    );
+  };
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={['#06b6d4', '#0891b2']}
+        colors={['#2196f3', '#1e88e5']}
         style={styles.header}
       >
-        <View style={styles.headerContent}>
-          <MessageCircle size={28} color="#ffffff" />
-          <View style={styles.headerText}>
-            <Text style={styles.headerTitle}>Travel Advisor</Text>
-            <Text style={styles.headerSubtitle}>Your AI travel companion</Text>
+        <View style={styles.headerTop}>
+          <View style={styles.headerLeft}>
+            <MessageCircle size={24} color="#ffffff" />
+            <Text style={styles.advisorTitle}>AI Travel Advisor</Text>
           </View>
           <TouchableOpacity 
             style={styles.debugButton}
@@ -266,6 +540,34 @@ export default function AdvisorScreen() {
             <Settings size={20} color="#ffffff" />
           </TouchableOpacity>
         </View>
+        
+        {tripInfo && (
+          <View style={styles.tripInfoContainer}>
+            <Text style={styles.tripDestination}>{tripInfo.destination}</Text>
+            <View style={styles.tripDetails}>
+              <Text style={styles.tripDetail}>
+                {tripInfo.duration} day{tripInfo.duration !== 1 ? 's' : ''}
+              </Text>
+              <Text style={styles.tripSeparator}>•</Text>
+              <Text style={styles.tripDetail}>£{tripInfo.totalCost} total</Text>
+              {tripInfo.daysUntil > 0 && (
+                <>
+                  <Text style={styles.tripSeparator}>•</Text>
+                  <Text style={styles.tripCountdown}>
+                    {tripInfo.daysUntil} day{tripInfo.daysUntil !== 1 ? 's' : ''} to go
+                  </Text>
+                </>
+              )}
+            </View>
+          </View>
+        )}
+        
+        {!tripInfo && (
+          <View style={styles.defaultHeaderInfo}>
+            <Text style={styles.defaultTitle}>Your AI travel companion</Text>
+            <Text style={styles.defaultSubtitle}>Ask me anything about your travels</Text>
+          </View>
+        )}
       </LinearGradient>
 
       <KeyboardAvoidingView 
@@ -273,70 +575,82 @@ export default function AdvisorScreen() {
         behavior={Platform.OS === 'ios' ? 'padding' : 'height'}
         keyboardVerticalOffset={Platform.OS === 'ios' ? 90 : 0}
       >
-        <ScrollView
-          ref={scrollViewRef}
-          style={styles.messagesContainer}
-          showsVerticalScrollIndicator={false}
-          contentContainerStyle={styles.messagesContent}
-        >
-          {messages.map(renderMessage)}
-          
-          {isLoading && (
-            <View style={[styles.messageContainer, styles.advisorMessage]}>
-              <View style={styles.messageHeader}>
-                <View style={styles.messageIcon}>
-                  <Bot size={16} color="#ffffff" />
+        {/* Greeting Message */}
+        {renderGreeting()}
+
+        <View style={styles.messagesSection}>
+          <ScrollView
+            ref={scrollViewRef}
+            style={styles.messagesContainer}
+            showsVerticalScrollIndicator={false}
+            contentContainerStyle={styles.messagesContent}
+            keyboardShouldPersistTaps="handled"
+          >
+            {messages.map(renderMessage)}
+            
+            {isLoading && (
+              <View style={[styles.messageContainer, styles.advisorMessage]}>
+                <View style={styles.messageHeader}>
+                  <View style={styles.messageIcon}>
+                    <Bot size={16} color="#ffffff" />
+                  </View>
+                  <Text style={styles.messageTime}>Now</Text>
                 </View>
-                <Text style={styles.messageTime}>Now</Text>
+                <View style={[styles.messageBubble, styles.advisorBubble, styles.loadingBubble]}>
+                  <Loader size={16} color="#2196f3" />
+                  <Text style={styles.loadingText}>Thinking...</Text>
+                </View>
               </View>
-              <View style={[styles.messageBubble, styles.advisorBubble, styles.loadingBubble]}>
-                <Loader size={16} color="#06b6d4" />
-                <Text style={styles.loadingText}>Thinking...</Text>
-              </View>
-            </View>
-          )}
-        </ScrollView>
-
-        {/* Quick Questions */}
-        <View style={styles.quickQuestionsContainer}>
-          <Text style={styles.quickQuestionsTitle}>Quick Questions:</Text>
-          <ScrollView 
-            horizontal 
-            showsHorizontalScrollIndicator={false}
-            style={styles.quickQuestionsScroll}
-          >
-            {quickQuestions.map((question) => (
-              <TouchableOpacity
-                key={question.id}
-                style={styles.quickQuestionButton}
-                onPress={() => handleQuickQuestion(question.text)}
-              >
-                <Text style={styles.quickQuestionIcon}>{question.icon}</Text>
-                <Text style={styles.quickQuestionText}>{question.text}</Text>
-              </TouchableOpacity>
-            ))}
+            )}
           </ScrollView>
-        </View>
 
-        {/* Input Area */}
-        <View style={styles.inputContainer}>
-          <TextInput
-            style={styles.textInput}
-            value={inputText}
-            onChangeText={setInputText}
-            placeholder="Ask me anything about your trip..."
-            placeholderTextColor="#94a3b8"
-            multiline
-            maxLength={500}
-            editable={!isLoading}
-          />
-          <TouchableOpacity
-            style={[styles.sendButton, (!inputText.trim() || isLoading) && styles.sendButtonDisabled]}
-            onPress={() => sendMessage(inputText)}
-            disabled={!inputText.trim() || isLoading}
-          >
-            <Send size={20} color="#ffffff" />
-          </TouchableOpacity>
+          {/* Quick Questions */}
+          <View style={styles.quickQuestionsContainer}>
+            <Text style={styles.quickQuestionsTitle}>Quick Questions:</Text>
+            <ScrollView 
+              horizontal 
+              showsHorizontalScrollIndicator={false}
+              style={styles.quickQuestionsScroll}
+            >
+              {quickQuestions.map((question) => (
+                <TouchableOpacity
+                  key={question.id}
+                  style={styles.quickQuestionButton}
+                  onPress={() => handleQuickQuestion(question.text)}
+                >
+                  <Text style={styles.quickQuestionIcon}>{question.icon}</Text>
+                  <Text style={styles.quickQuestionText}>{question.text}</Text>
+                </TouchableOpacity>
+              ))}
+            </ScrollView>
+          </View>
+
+          {/* Input Area */}
+          <View style={styles.inputContainer}>
+            <TextInput
+              style={styles.textInput}
+              value={inputText}
+              onChangeText={setInputText}
+              placeholder="Ask me anything about your trip..."
+              placeholderTextColor="#94a3b8"
+              multiline
+              maxLength={500}
+              editable={!isLoading}
+              returnKeyType="send"
+              onSubmitEditing={() => {
+                if (inputText.trim() && !isLoading) {
+                  sendMessage(inputText);
+                }
+              }}
+            />
+            <TouchableOpacity
+              style={[styles.sendButton, (!inputText.trim() || isLoading) && styles.sendButtonDisabled]}
+              onPress={() => sendMessage(inputText)}
+              disabled={!inputText.trim() || isLoading}
+            >
+              <Send size={20} color="#ffffff" />
+            </TouchableOpacity>
+          </View>
         </View>
       </KeyboardAvoidingView>
     </SafeAreaView>
@@ -350,38 +664,117 @@ const styles = StyleSheet.create({
   },
   header: {
     paddingHorizontal: 24,
-    paddingVertical: 20,
+    paddingVertical: 16,
     borderBottomLeftRadius: 24,
     borderBottomRightRadius: 24,
   },
-  headerContent: {
+  headerTop: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'space-between',
+    marginBottom: 12,
+  },
+  headerLeft: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  headerText: {
-    flex: 1,
-    marginLeft: 12,
-  },
-  headerTitle: {
-    fontSize: 24,
+  advisorTitle: {
+    fontSize: 16,
     fontWeight: 'bold',
     color: '#ffffff',
-  },
-  headerSubtitle: {
-    fontSize: 14,
-    color: '#cffafe',
-    marginTop: 2,
+    marginLeft: 8,
   },
   debugButton: {
-    width: 40,
-    height: 40,
-    borderRadius: 20,
+    padding: 8,
+    borderRadius: 8,
     backgroundColor: 'rgba(255, 255, 255, 0.2)',
+  },
+  tripInfoContainer: {
     alignItems: 'center',
+    marginTop: 8,
+  },
+  tripDestination: {
+    fontSize: 18,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 2,
+    textAlign: 'center',
+  },
+  tripDetails: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    flexWrap: 'wrap',
     justifyContent: 'center',
+  },
+  tripDetail: {
+    fontSize: 12,
+    color: '#bbdefb',
+  },
+  tripSeparator: {
+    fontSize: 12,
+    color: '#bbdefb',
+    marginHorizontal: 8,
+  },
+  tripCountdown: {
+    fontSize: 12,
+    color: '#ffffff',
+    fontWeight: '600',
+    backgroundColor: 'rgba(255, 255, 255, 0.2)',
+    paddingHorizontal: 8,
+    paddingVertical: 2,
+    borderRadius: 8,
+  },
+  defaultHeaderInfo: {
+    alignItems: 'center',
+    marginTop: 8,
+  },
+  defaultTitle: {
+    fontSize: 16,
+    fontWeight: 'bold',
+    color: '#ffffff',
+    marginBottom: 2,
+  },
+  defaultSubtitle: {
+    fontSize: 12,
+    color: '#bbdefb',
   },
   chatContainer: {
     flex: 1,
+  },
+  messagesSection: {
+    flex: 1,
+  },
+  greetingContainer: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+    borderBottomWidth: 1,
+    borderBottomColor: '#f1f5f9',
+    alignItems: 'center',
+  },
+  greetingText: {
+    fontSize: 14,
+    color: '#475569',
+    fontStyle: 'italic',
+    lineHeight: 18,
+    textAlign: 'center',
+  },
+  greetingSubtext: {
+    fontSize: 12,
+    color: '#94a3b8',
+    textAlign: 'center',
+    marginTop: 4,
+    fontWeight: '500',
+  },
+  titleContainer: {
+    paddingHorizontal: 24,
+    paddingVertical: 12,
+    backgroundColor: '#ffffff',
+  },
+  titleText: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
   },
   messagesContainer: {
     flex: 1,
@@ -408,7 +801,7 @@ const styles = StyleSheet.create({
     width: 24,
     height: 24,
     borderRadius: 12,
-    backgroundColor: '#06b6d4',
+    backgroundColor: '#2196f3',
     alignItems: 'center',
     justifyContent: 'center',
     marginRight: 8,
@@ -447,6 +840,7 @@ const styles = StyleSheet.create({
   },
   advisorText: {
     color: '#1e293b',
+    fontStyle: 'normal',
   },
   loadingText: {
     fontSize: 14,
@@ -484,10 +878,10 @@ const styles = StyleSheet.create({
     backgroundColor: '#ffffff',
   },
   quickQuestionsTitle: {
-    fontSize: 14,
+    fontSize: 12,
     fontWeight: '600',
     color: '#64748b',
-    marginBottom: 8,
+    marginBottom: 6,
   },
   quickQuestionsScroll: {
     flexDirection: 'row',
@@ -534,7 +928,7 @@ const styles = StyleSheet.create({
     borderColor: '#e2e8f0',
   },
   sendButton: {
-    backgroundColor: '#06b6d4',
+    backgroundColor: '#2196f3',
     borderRadius: 20,
     width: 40,
     height: 40,

@@ -25,10 +25,14 @@ export default function IndexScreen() {
     if (mountedRef.current) {
       if (user) {
         console.log('✅ User authenticated, redirecting to tabs');
-        router.replace('/(tabs)');
+        setTimeout(() => {
+          router.replace('/(tabs)');
+        }, 100);
       } else {
         console.log('❌ No user, redirecting to welcome');
-        router.replace('/(auth)/welcome');
+        setTimeout(() => {
+          router.replace('/(auth)/welcome');
+        }, 100);
       }
     }
   }, [user, loading]);

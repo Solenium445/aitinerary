@@ -36,7 +36,7 @@ export default function WelcomeScreen() {
             <View style={styles.heroOverlay}>
               <View style={styles.logoContainer}>
                 <Compass size={48} color="#ffffff" />
-                <Text style={styles.logoText}>AItinerary</Text>
+                <Text style={styles.logoText}>TravelMate</Text>
               </View>
             </View>
           </View>
@@ -70,14 +70,20 @@ export default function WelcomeScreen() {
             <View style={styles.actions}>
               <TouchableOpacity
                 style={styles.primaryButton}
-                onPress={() => router.push('/(auth)/signup')}
+                onPress={() => {
+                  console.log('🚀 Get Started button pressed');
+                  router.push('/(auth)/signup');
+                }}
               >
                 <Text style={styles.primaryButtonText}>Get Started</Text>
               </TouchableOpacity>
 
               <TouchableOpacity
                 style={styles.secondaryButton}
-                onPress={() => router.push('/(auth)/login')}
+                onPress={() => {
+                  console.log('🔑 Login button pressed');
+                  router.push('/(auth)/login');
+                }}
               >
                 <Text style={styles.secondaryButtonText}>I already have an account</Text>
               </TouchableOpacity>

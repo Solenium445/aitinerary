@@ -147,140 +147,8 @@ function extendItineraryToFullDuration(aiItinerary: any, tripData: any, fullDura
     return generateSampleItineraryWithRealPlaces(tripData, fullDuration, realPlaces);
   }
   
-  const startDate = new Date(tripData.startDate);
-  const extendedDays = [...aiItinerary.days];
-  
-  // Ensure we have the correct number of days
-  console.log(`📊 Current days: ${extendedDays.length}, Target: ${fullDuration}`);
-  
-  // Generate additional days using sample data pattern
-  for (let i = aiItinerary.days.length; i < fullDuration; i++) {
-    const currentDate = new Date(startDate);
-    currentDate.setDate(startDate.getDate() + i);
-    
-    console.log(`🏗️ Generating day ${i + 1} for date ${currentDate.toISOString().split('T')[0]}`);
-    
-    // Cycle through real places if available
-    const placeIndex1 = (i * 2) % realPlaces.length;
-    const placeIndex2 = (i * 2 + 1) % realPlaces.length;
-    const availablePlaces = [];
-    
-    if (realPlaces.length > 0) {
-      if (placeIndex1 < realPlaces.length) availablePlaces.push(realPlaces[placeIndex1]);
-      if (placeIndex2 < realPlaces.length && placeIndex2 !== placeIndex1) {
-        availablePlaces.push(realPlaces[placeIndex2]);
-      }
-    }
-    
-    const activities = [];
-    
-    // Morning activity
-    if (availablePlaces.length > 0) {
-      const place = availablePlaces[0];
-      activities.push({
-        id: `day${i + 1}_real_${place.id}`,
-        time: '09:00',
-        title: place.name,
-        description: place.description,
-        location: place.location,
-        type: 'morning',
-        confidence: Math.floor(place.rating * 20),
-        estimated_cost_gbp: place.estimated_cost_gbp,
-        duration_hours: place.duration_hours,
-        booking_required: place.booking_required,
-        local_tip: `Highly rated local spot with ${place.rating}/5 stars`,
-      });
-    } else {
-      activities.push({
-        id: `day${i + 1}_activity1`,
-        time: '09:00',
-        title: `Explore ${tripData.destination} - Day ${i + 1}`,
-        description: `Continue discovering the hidden gems and local culture of ${tripData.destination}.`,
-        location: `${tripData.destination} District`,
-        type: 'morning',
-        confidence: 88,
-        estimated_cost_gbp: 20,
-        duration_hours: 2,
-        booking_required: false,
-        local_tip: 'Ask locals for their favorite spots',
-      });
-    }
-    
-    // Afternoon activity
-    if (availablePlaces.length > 1) {
-      const place = availablePlaces[1];
-      activities.push({
-        id: `day${i + 1}_real_${place.id}`,
-        time: '14:00',
-        title: place.name,
-        description: place.description,
-        location: place.location,
-        type: 'afternoon',
-        confidence: Math.floor(place.rating * 20),
-        estimated_cost_gbp: place.estimated_cost_gbp,
-        duration_hours: place.duration_hours,
-        booking_required: place.booking_required,
-        local_tip: `Popular destination with ${place.rating}/5 stars`,
-      });
-    } else {
-      activities.push({
-        id: `day${i + 1}_activity2`,
-        time: '14:00',
-        title: `Local Experience - Day ${i + 1}`,
-        description: `Immerse yourself in the local lifestyle and discover what makes ${tripData.destination} special.`,
-        location: `${tripData.destination} Center`,
-        type: 'afternoon',
-        confidence: 85,
-        estimated_cost_gbp: 30,
-        duration_hours: 2.5,
-        booking_required: false,
-        local_tip: 'Try something new and adventurous',
-      });
-    }
-    
-    // Evening activity for longer days
-    if (i % 3 === 0 || fullDuration > 7) { // Add evening activities every 3rd day or for longer trips
-      activities.push({
-        id: `day${i + 1}_activity3`,
-        time: '19:00',
-        title: `Evening in ${tripData.destination}`,
-        description: 'Experience the nightlife and evening atmosphere of the city.',
-        location: `${tripData.destination} Entertainment District`,
-        type: 'evening',
-        confidence: 82,
-        estimated_cost_gbp: 40,
-        duration_hours: 3,
-        booking_required: false,
-        local_tip: 'Check local event listings for special happenings',
-      });
-    }
-    
-    extendedDays.push({
-      date: currentDate.toISOString().split('T')[0],
-      day_number: i + 1,
-      activities,
-    });
-  }
-  
-  console.log(`✅ Extended itinerary completed with ${extendedDays.length} days`);
-  
-  // Update total cost
-  const totalCost = extendedDays.reduce((sum, day) => {
-    return sum + day.activities.reduce((daySum, activity) => daySum + (activity.estimated_cost_gbp || 0), 0);
-  }, 0);
-  
-  const result = {
-    ...aiItinerary,
-    days: extendedDays,
-    total_estimated_cost_gbp: totalCost,
-    destination: tripData.destination,
-    location: tripData.destination,
-    startDate: tripData.startDate,
-    endDate: tripData.endDate,
-  };
-  
-  console.log(`💰 Total estimated cost: £${result.total_estimated_cost_gbp}`);
-  return result;
+  // Use the new normalization function which handles extension internally
+  return normalizeAIItinerary(aiItinerary, tripData, fullDuration);
 }
 
 async function fetchRealPlacesForItinerary(destination: string, interests: string[]) {
@@ -309,7 +177,7 @@ async function fetchRealPlacesForItinerary(destination: string, interests: strin
         console.log(`🗺️ Fetching ${category} places for ${destination}...`);
         
         // Call the places API directly with proper URL construction
-        const baseUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:3000' : '';
+        const baseUrl = process.env.NODE_ENV === 'development' ? 'http://localhost:8081' : '';
         const placesUrl = `${baseUrl}/places?destination=${encodeURIComponent(destination)}&category=${category}`;
         console.log(`🔗 Calling places API: ${placesUrl}`);
         
@@ -362,6 +230,12 @@ async function fetchRealPlacesForItinerary(destination: string, interests: strin
 }
 
 async function generateWithOllamaAndRealPlaces(ollamaUrl: string, ollamaModel: string, tripData: any, maxDuration: number, realPlaces: any[]) {
+  // Only proceed if we have real places from Google
+  if (realPlaces.length === 0) {
+    console.log('❌ No real places available, skipping AI generation');
+    throw new Error('No verified Google Places data available for AI generation');
+  }
+
   // Create AbortController for timeout
   const controller = new AbortController();
   const timeoutId = setTimeout(() => {
@@ -390,22 +264,63 @@ async function generateWithOllamaAndRealPlaces(ollamaUrl: string, ollamaModel: s
       console.warn(`⚠️ Model ${ollamaModel} not found. Available models:`, healthData.models?.map(m => m.name));
     }
 
-    // ULTRA SIMPLIFIED prompt for tinyllama - just basic structure
-    const prompt = `Create ${maxDuration} day trip for ${tripData.destination}.
+    // Create a list of verified places for the AI to use
+    const placesContext = realPlaces.map(place => 
+      `- ${place.name} (${place.location}) - ${place.category} - £${place.estimated_cost_gbp} - ${place.duration_hours}h - Rating: ${place.rating}/5`
+    ).join('\n');
 
-JSON only:
+    // Enhanced prompt that strictly uses only Google Places data
+    const prompt = `Create a detailed ${maxDuration}-day travel itinerary for ${tripData.destination} using ONLY the verified places listed below.
+
+VERIFIED PLACES FROM GOOGLE PLACES API:
+${placesContext}
+
+REQUIREMENTS:
+- Use ONLY places from the verified list above
+- Use the EXACT names, locations, and details provided
+- Do NOT invent or modify any place names or addresses
+- Use the provided ratings, costs, and duration data
+- Keep descriptions minimal and factual
+- If you need more activities than available places, repeat places at different times
+
+User preferences:
+- Budget: ${tripData.budget}
+- Group: ${tripData.group}
+- Interests: ${tripData.interests?.join(', ') || 'general'}
+- Accessibility needs: ${tripData.accessibility?.join(', ') || 'none'}
+
+Respond with ONLY valid JSON in this exact format:
 {
-"days":[
-{"date":"${tripData.startDate}","day_number":1,"activities":[
-{"time":"09:00","title":"Activity","description":"Short desc","location":"${tripData.destination}","type":"morning","confidence":85,"estimated_cost_gbp":20,"duration_hours":2,"booking_required":false,"local_tip":"tip"}
-]}
-],
-"total_estimated_cost_gbp":50,
-"currency":"GBP",
-"travel_tips":["tip1"]
+  "days": [
+    {
+      "date": "${tripData.startDate}",
+      "day_number": 1,
+      "activities": [
+        {
+          "id": "day1_activity1",
+          "time": "09:00",
+          "title": "[EXACT NAME FROM VERIFIED LIST]",
+          "description": "[MINIMAL FACTUAL DESCRIPTION]",
+          "location": "[EXACT LOCATION FROM VERIFIED LIST]",
+          "type": "morning",
+          "confidence": 92,
+          "estimated_cost_gbp": [USE PROVIDED COST],
+          "duration_hours": [USE PROVIDED DURATION],
+          "booking_required": [USE PROVIDED BOOKING STATUS],
+          "local_tip": "This popular spot is well-rated by visitors",
+          "google_place_id": "[PLACE ID IF AVAILABLE]",
+          "verified": true
+        }
+      ]
+    }
+  ],
+  "total_estimated_cost_gbp": 200,
+  "currency": "GBP",
+  "travel_tips": ["Book popular venues in advance", "Check opening hours before visiting"],
+  "verified_places_used": ${realPlaces.length}
 }
 
-ONLY JSON. ${maxDuration} days max.`;
+Generate exactly ${maxDuration} days using ONLY the verified places listed above.`;
 
     console.log('🤖 Sending request to Ollama...');
     const ollamaResponse = await fetch(`${ollamaUrl}/api/generate`, {
@@ -419,9 +334,9 @@ ONLY JSON. ${maxDuration} days max.`;
         prompt: prompt,
         stream: false,
         options: {
-          temperature: 0.1,
-          top_p: 0.3,
-          num_predict: 300, // Reduced for faster response
+          temperature: 0.3,
+          top_p: 0.8,
+          num_predict: 2000, // Increased for detailed responses
           stop: ['```', '\n\n\n', 'Human:', 'User:', 'Assistant:'], // Stop tokens
         },
       }),
@@ -464,72 +379,11 @@ ONLY JSON. ${maxDuration} days max.`;
       const parsed = JSON.parse(repairedJson);
       console.log('✅ Successfully parsed AI response');
       
-      // Handle both array and object responses
-      let finalResult;
-      if (Array.isArray(parsed)) {
-        // AI returned an array directly, wrap it in the expected structure
-        console.log('🔄 Converting array response to expected format');
-        finalResult = {
-          days: parsed.map((day, index) => ({
-            date: day.date || new Date(Date.now() + index * 24 * 60 * 60 * 1000).toISOString().split('T')[0],
-            day_number: day.dayNumber || day.day_number || (index + 1),
-            activities: day.activities || []
-          })),
-          total_estimated_cost_gbp: 100, // Default fallback
-          currency: 'GBP',
-          travel_tips: ['Download offline maps', 'Learn basic phrases', 'Carry cash']
-        };
-      } else if (parsed.days && Array.isArray(parsed.days)) {
-        // AI returned the expected object structure
-        finalResult = parsed;
-      } else {
-        throw new Error('Invalid response structure: expected array or object with days property');
-      }
-      
-      // Validate and normalize the final result
-      if (!finalResult.days || !Array.isArray(finalResult.days)) {
-        throw new Error('Missing or invalid days array in response');
-      }
-      
-      // Ensure each day has the required structure
-      finalResult.days = finalResult.days.map((day, index) => {
-        // Calculate proper date based on trip start date
-        const dayDate = new Date(tripData.startDate);
-        dayDate.setDate(dayDate.getDate() + index);
-        
-        return {
-          date: day.date || dayDate.toISOString().split('T')[0],
-          day_number: day.day_number || day.dayNumber || (index + 1),
-          activities: (day.activities || []).map(activity => ({
-            id: activity.id || `day${index + 1}_activity_${Math.random().toString(36).substr(2, 9)}`,
-            time: activity.time || '09:00',
-            title: activity.title || 'Local Experience',
-            description: activity.description || 'Explore the local area and culture.',
-            location: activity.location || tripData.destination,
-            type: activity.type || 'morning',
-            confidence: activity.confidence || 85,
-            estimated_cost_gbp: activity.estimated_cost_gbp || 20,
-            duration_hours: activity.duration_hours || 2,
-            booking_required: activity.booking_required || false,
-            local_tip: activity.local_tip || 'Ask locals for recommendations'
-          }))
-        };
-      });
-      
-      // Ensure required top-level fields
-      finalResult.total_estimated_cost_gbp = finalResult.total_estimated_cost_gbp || 
-        finalResult.days.reduce((sum, day) => 
-          sum + day.activities.reduce((daySum, activity) => daySum + (activity.estimated_cost_gbp || 0), 0), 0
-        );
-      finalResult.currency = finalResult.currency || 'GBP';
-      finalResult.travel_tips = finalResult.travel_tips || [
-        'Download offline maps before exploring',
-        'Learn basic local phrases',
-        'Carry cash for small vendors'
-      ];
-      
-      console.log('✅ Final result validated and normalized');
-      return finalResult;
+      // Normalize and validate the AI response with robust error handling
+      const normalizedResult = normalizeAIItinerary(parsed, tripData, maxDuration);
+      console.log('✅ AI response normalized and validated');
+      console.log('📊 Final AI result:', JSON.stringify(normalizedResult, null, 2));
+      return normalizedResult;
       
     } catch (repairError) {
       console.error('💥 JSON repair failed:', repairError);
@@ -545,6 +399,176 @@ ONLY JSON. ${maxDuration} days max.`;
     
     throw new Error(`Ollama generation failed: ${error.message}`);
   }
+}
+
+// Comprehensive AI response normalization function
+function normalizeAIItinerary(parsed: any, tripData: any, targetDuration: number) {
+  console.log('🔧 Starting AI itinerary normalization...');
+  console.log('📊 Input data:', { 
+    hasDays: !!parsed.days, 
+    daysLength: parsed.days?.length || 0, 
+    targetDuration,
+    startDate: tripData.startDate 
+  });
+
+  // Handle both array and object responses
+  let rawDays = [];
+  if (Array.isArray(parsed)) {
+    console.log('🔄 Converting array response to days format');
+    rawDays = parsed;
+  } else if (parsed.days && Array.isArray(parsed.days)) {
+    console.log('✅ Using days array from object response');
+    rawDays = parsed.days;
+  } else {
+    console.warn('⚠️ Invalid response structure, creating empty days array');
+    rawDays = [];
+  }
+
+  console.log(`📋 Processing ${rawDays.length} raw days for target of ${targetDuration} days`);
+
+  // Step 1: Normalize existing days with proper structure and validation
+  const normalizedDays = rawDays.map((day, index) => {
+    const dayDate = new Date(tripData.startDate);
+    dayDate.setDate(dayDate.getDate() + index);
+    
+    const normalizedDay = {
+      date: day.date || dayDate.toISOString().split('T')[0],
+      day_number: index + 1, // Force sequential numbering
+      activities: (day.activities || []).map((activity, actIndex) => ({
+        id: activity.id || `day${index + 1}_activity${actIndex + 1}_${Math.random().toString(36).substr(2, 6)}`,
+        time: activity.time || (actIndex === 0 ? '09:00' : actIndex === 1 ? '14:00' : '19:00'),
+        title: activity.title || `Local Experience ${actIndex + 1}`,
+        description: activity.description || `Explore the local culture and attractions of ${tripData.destination}.`,
+        location: activity.location || `${tripData.destination} Center`,
+        type: activity.type || (actIndex === 0 ? 'morning' : actIndex === 1 ? 'afternoon' : 'evening'),
+        confidence: Math.max(70, Math.min(100, activity.confidence || 85)),
+        estimated_cost_gbp: Math.max(0, activity.estimated_cost_gbp || activity.price || 20),
+        duration_hours: Math.max(0.5, Math.min(8, activity.duration_hours || activity.duration || 2)),
+        booking_required: !!activity.booking_required,
+        local_tip: activity.local_tip || activity.tip || 'Ask locals for their recommendations',
+        rating: Math.max(3.0, Math.min(5.0, activity.rating || 4.2))
+      }))
+    };
+    
+    console.log(`✅ Normalized day ${index + 1}: ${normalizedDay.activities.length} activities`);
+    return normalizedDay;
+  });
+
+  console.log(`📊 Normalized ${normalizedDays.length} days, need ${targetDuration} total`);
+
+  // Step 2: Extend to target duration if needed
+  const finalDays = [...normalizedDays];
+  
+  if (finalDays.length < targetDuration) {
+    console.log(`🔄 Extending from ${finalDays.length} to ${targetDuration} days`);
+    
+    for (let i = finalDays.length; i < targetDuration; i++) {
+      const dayDate = new Date(tripData.startDate);
+      dayDate.setDate(dayDate.getDate() + i);
+      
+      // Clone and adapt from earlier days (cycle through available days)
+      const sourceDay = normalizedDays[i % normalizedDays.length] || null;
+      
+      let newActivities = [];
+      
+      if (sourceDay && sourceDay.activities.length > 0) {
+        console.log(`🔄 Cloning day ${(i % normalizedDays.length) + 1} for day ${i + 1}`);
+        
+        // Clone activities with variations
+        newActivities = sourceDay.activities.map((activity, actIndex) => ({
+          id: `day${i + 1}_cloned_activity${actIndex + 1}_${Math.random().toString(36).substr(2, 6)}`,
+          time: activity.time,
+          title: `${activity.title} - Day ${i + 1} Variation`,
+          description: `${activity.description} Continue exploring with a different perspective on day ${i + 1}.`,
+          location: activity.location.replace(/Day \d+/g, `Day ${i + 1}`),
+          type: activity.type,
+          confidence: Math.max(75, activity.confidence - 5), // Slightly lower confidence for cloned
+          estimated_cost_gbp: activity.estimated_cost_gbp + Math.floor(Math.random() * 10 - 5), // Small cost variation
+          duration_hours: activity.duration_hours,
+          booking_required: activity.booking_required,
+          local_tip: `${activity.local_tip} Perfect for day ${i + 1} of your journey.`,
+          rating: Math.max(3.5, activity.rating - 0.2) // Slightly lower rating for variations
+        }));
+      } else {
+        console.log(`🏗️ Creating default activities for day ${i + 1}`);
+        
+        // Create default activities if no source available
+        newActivities = [
+          {
+            id: `day${i + 1}_default_morning`,
+            time: '09:00',
+            title: `Morning Discovery - Day ${i + 1}`,
+            description: `Start day ${i + 1} with a local breakfast and morning exploration of ${tripData.destination}.`,
+            location: `${tripData.destination} Morning District`,
+            type: 'morning',
+            confidence: 82,
+            estimated_cost_gbp: 18,
+            duration_hours: 2,
+            booking_required: false,
+            local_tip: 'Early morning is perfect for avoiding crowds',
+            rating: 4.1
+          },
+          {
+            id: `day${i + 1}_default_afternoon`,
+            time: '14:00',
+            title: `Afternoon Adventure - Day ${i + 1}`,
+            description: `Discover new areas of ${tripData.destination} with afternoon activities and local experiences.`,
+            location: `${tripData.destination} Cultural Quarter`,
+            type: 'afternoon',
+            confidence: 88,
+            estimated_cost_gbp: 32,
+            duration_hours: 3,
+            booking_required: true,
+            local_tip: 'Book ahead for popular afternoon activities',
+            rating: 4.3
+          }
+        ];
+      }
+      
+      finalDays.push({
+        date: dayDate.toISOString().split('T')[0],
+        day_number: i + 1,
+        activities: newActivities
+      });
+      
+      console.log(`✅ Extended day ${i + 1} with ${newActivities.length} activities`);
+    }
+  }
+
+  // Step 3: Final validation and sorting
+  finalDays.sort((a, b) => a.day_number - b.day_number);
+  
+  // Step 4: Calculate total cost
+  const totalCost = finalDays.reduce((sum, day) => {
+    return sum + day.activities.reduce((daySum, activity) => 
+      daySum + (activity.estimated_cost_gbp || 0), 0);
+  }, 0);
+
+  // Step 5: Build final result
+  const finalResult = {
+    days: finalDays,
+    total_estimated_cost_gbp: totalCost,
+    currency: 'GBP',
+    travel_tips: parsed.travel_tips || [
+      'Download offline maps before exploring',
+      'Learn basic local phrases for better interactions',
+      'Carry cash for small vendors and tips',
+      'Book popular restaurants and attractions in advance'
+    ],
+    local_phrases: parsed.local_phrases || [
+      { english: 'Hello', local: 'Hello', pronunciation: 'heh-LOH' },
+      { english: 'Thank you', local: 'Thank you', pronunciation: 'THANK you' },
+      { english: 'Excuse me', local: 'Excuse me', pronunciation: 'ek-SKYOOZ me' }
+    ]
+  };
+
+  console.log('🎉 Final normalized itinerary:');
+  console.log(`📊 Days: ${finalResult.days.length}`);
+  console.log(`💰 Total cost: £${finalResult.total_cost_gbp}`);
+  console.log(`📋 Activities per day: ${finalResult.days.map(d => d.activities.length).join(', ')}`);
+  console.log('📄 Complete final JSON:', JSON.stringify(finalResult, null, 2));
+
+  return finalResult;
 }
 
 function generateSampleItineraryWithRealPlaces(tripData: any, tripDuration: number, realPlaces: any[]) {
@@ -749,7 +773,7 @@ function generateSampleItinerary(tripData: any, tripDuration: number) {
     ];
 
     // Add evening activity for longer trips or alternating days
-    if (tripDuration > 2 && (i % 2 === 0 || tripDuration > 5)) {
+    if (i % 2 === 0 || tripDuration > 3) {
       activities.push({
         id: `day${i + 1}_activity3`,
         time: '19:00',

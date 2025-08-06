@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useState, useEffect } from 'react';
 import {
   View,
   Text,
@@ -6,386 +6,279 @@ import {
   TouchableOpacity,
   StyleSheet,
   TextInput,
-  Alert,
+  RefreshControl,
 } from 'react-native';
 import { LinearGradient } from 'expo-linear-gradient';
 import { SafeAreaView } from 'react-native-safe-area-context';
-import { Plane, Search, MapPin, Clock, Wifi, WifiOff, Car, Accessibility, Info, ExternalLink, Globe, Navigation, Phone, Building } from 'lucide-react-native';
+import { Plane, Search, MapPin, Clock, Globe, Building, ExternalLink } from 'lucide-react-native';
 
-interface UKAirport {
+interface Airport {
   name: string;
-  iata: string;
-  icao: string;
+  iata_code: string;
+  icao_code: string;
+  country: string;
   city: string;
-  region: string;
   lat: number;
   lon: number;
-  website: string;
-  wifi: {
-    available: boolean;
-    free: boolean;
-    details: string;
-  };
-  accessibility: {
-    wheelchair_accessible: boolean;
-    assistance_available: boolean;
-    details: string;
-  };
-  parking: {
-    available: boolean;
-    cost_per_day: string;
-    booking_required: boolean;
-    details: string;
-  };
-  taxi_services: string[];
-  car_hire: string[];
-  terminal_count: number;
+  timezone: string;
+  website?: string;
 }
 
-const ukAirports: UKAirport[] = [
+const majorAirports: Airport[] = [
   {
     name: "London Heathrow Airport",
-    iata: "LHR",
-    icao: "EGLL",
+    iata_code: "LHR",
+    icao_code: "EGLL",
+    country: "United Kingdom",
     city: "London",
-    region: "Greater London",
     lat: 51.4700,
     lon: -0.4543,
-    website: "https://www.heathrow.com",
-    wifi: {
-      available: true,
-      free: true,
-      details: "Free WiFi throughout all terminals - HeathrowWiFi network"
-    },
-    accessibility: {
-      wheelchair_accessible: true,
-      assistance_available: true,
-      details: "Full wheelchair access, assistance dogs welcome, special assistance booking available"
-    },
-    parking: {
-      available: true,
-      cost_per_day: "£25-45",
-      booking_required: true,
-      details: "Multiple car parks, pre-booking recommended for better rates"
-    },
-    taxi_services: ["Heathrow Taxis", "Uber", "Addison Lee", "Black Cabs"],
-    car_hire: ["Hertz", "Avis", "Enterprise", "Budget", "Europcar", "Sixt"],
-    terminal_count: 5
+    timezone: "Europe/London",
+    website: "https://www.heathrow.com"
   },
   {
     name: "London Gatwick Airport",
-    iata: "LGW",
-    icao: "EGKK",
+    iata_code: "LGW",
+    icao_code: "EGKK",
+    country: "United Kingdom",
     city: "London",
-    region: "West Sussex",
     lat: 51.1481,
     lon: -0.1903,
-    website: "https://www.gatwickairport.com",
-    wifi: {
-      available: true,
-      free: true,
-      details: "Free WiFi in both terminals - Gatwick_Free_WiFi"
-    },
-    accessibility: {
-      wheelchair_accessible: true,
-      assistance_available: true,
-      details: "Wheelchair accessible throughout, assistance available 24/7"
-    },
-    parking: {
-      available: true,
-      cost_per_day: "£15-35",
-      booking_required: false,
-      details: "Short and long stay options, better rates online"
-    },
-    taxi_services: ["Gatwick Taxis", "Uber", "Checker Cars"],
-    car_hire: ["Hertz", "Avis", "Budget", "Enterprise", "Europcar"],
-    terminal_count: 2
+    timezone: "Europe/London",
+    website: "https://www.gatwickairport.com"
   },
   {
     name: "Manchester Airport",
-    iata: "MAN",
-    icao: "EGCC",
+    iata_code: "MAN",
+    icao_code: "EGCC",
+    country: "United Kingdom",
     city: "Manchester",
-    region: "Greater Manchester",
     lat: 53.3537,
     lon: -2.2750,
-    website: "https://www.manchesterairport.co.uk",
-    wifi: {
-      available: true,
-      free: true,
-      details: "Free WiFi across all 3 terminals - Manchester_Airport_WiFi"
-    },
-    accessibility: {
-      wheelchair_accessible: true,
-      assistance_available: true,
-      details: "Full accessibility, hearing loops, assistance booking required"
-    },
-    parking: {
-      available: true,
-      cost_per_day: "£12-28",
-      booking_required: false,
-      details: "Multiple parking options, shuttle buses to terminals"
-    },
-    taxi_services: ["Manchester Airport Taxis", "Uber", "Street Cars"],
-    car_hire: ["Hertz", "Avis", "Enterprise", "Budget", "Sixt"],
-    terminal_count: 3
+    timezone: "Europe/London",
+    website: "https://www.manchesterairport.co.uk"
   },
   {
-    name: "Birmingham Airport",
-    iata: "BHX",
-    icao: "EGBB",
-    city: "Birmingham",
-    region: "West Midlands",
-    lat: 52.4539,
-    lon: -1.7480,
-    website: "https://www.birminghamairport.co.uk",
-    wifi: {
-      available: true,
-      free: true,
-      details: "Free WiFi throughout terminal - BHX_Free_WiFi"
-    },
-    accessibility: {
-      wheelchair_accessible: true,
-      assistance_available: true,
-      details: "Wheelchair accessible, assistance dogs welcome, special help available"
-    },
-    parking: {
-      available: true,
-      cost_per_day: "£10-25",
-      booking_required: false,
-      details: "Short and long stay parking, pre-book for discounts"
-    },
-    taxi_services: ["Birmingham Airport Taxis", "Uber", "A2B Radio Cars"],
-    car_hire: ["Hertz", "Avis", "Enterprise", "Budget"],
-    terminal_count: 1
+    name: "Charles de Gaulle Airport",
+    iata_code: "CDG",
+    icao_code: "LFPG",
+    country: "France",
+    city: "Paris",
+    lat: 49.0097,
+    lon: 2.5479,
+    timezone: "Europe/Paris",
+    website: "https://www.parisaeroport.fr"
   },
   {
-    name: "Edinburgh Airport",
-    iata: "EDI",
-    icao: "EGPH",
-    city: "Edinburgh",
-    region: "Scotland",
-    lat: 55.9500,
-    lon: -3.3725,
-    website: "https://www.edinburghairport.com",
-    wifi: {
-      available: true,
-      free: true,
-      details: "Free WiFi throughout - Edinburgh_Airport_WiFi"
-    },
-    accessibility: {
-      wheelchair_accessible: true,
-      assistance_available: true,
-      details: "Full wheelchair access, assistance available, accessible toilets"
-    },
-    parking: {
-      available: true,
-      cost_per_day: "£8-22",
-      booking_required: false,
-      details: "Multiple parking zones, book online for better rates"
-    },
-    taxi_services: ["Edinburgh Airport Taxis", "Uber", "Central Taxis"],
-    car_hire: ["Hertz", "Avis", "Enterprise", "Budget", "Europcar"],
-    terminal_count: 1
+    name: "Amsterdam Schiphol Airport",
+    iata_code: "AMS",
+    icao_code: "EHAM",
+    country: "Netherlands",
+    city: "Amsterdam",
+    lat: 52.3086,
+    lon: 4.7639,
+    timezone: "Europe/Amsterdam",
+    website: "https://www.schiphol.nl"
   },
   {
-    name: "Glasgow Airport",
-    iata: "GLA",
-    icao: "EGPF",
-    city: "Glasgow",
-    region: "Scotland",
-    lat: 55.8719,
-    lon: -4.4331,
-    website: "https://www.glasgowairport.com",
-    wifi: {
-      available: true,
-      free: true,
-      details: "Free WiFi available - Glasgow_Airport_WiFi"
-    },
-    accessibility: {
-      wheelchair_accessible: true,
-      assistance_available: true,
-      details: "Wheelchair accessible, assistance booking available"
-    },
-    parking: {
-      available: true,
-      cost_per_day: "£7-20",
-      booking_required: false,
-      details: "Short and long stay options, online booking discounts"
-    },
-    taxi_services: ["Glasgow Airport Taxis", "Uber", "TOA Taxis"],
-    car_hire: ["Hertz", "Avis", "Enterprise", "Budget"],
-    terminal_count: 1
+    name: "Frankfurt Airport",
+    iata_code: "FRA",
+    icao_code: "EDDF",
+    country: "Germany",
+    city: "Frankfurt",
+    lat: 50.0333,
+    lon: 8.5706,
+    timezone: "Europe/Berlin",
+    website: "https://www.frankfurt-airport.com"
   },
   {
-    name: "Bristol Airport",
-    iata: "BRS",
-    icao: "EGGD",
-    city: "Bristol",
-    region: "Somerset",
-    lat: 51.3827,
-    lon: -2.7191,
-    website: "https://www.bristolairport.co.uk",
-    wifi: {
-      available: true,
-      free: true,
-      details: "Free WiFi throughout terminal - Bristol_Airport_WiFi"
-    },
-    accessibility: {
-      wheelchair_accessible: true,
-      assistance_available: true,
-      details: "Wheelchair accessible, assistance available with advance booking"
-    },
-    parking: {
-      available: true,
-      cost_per_day: "£6-18",
-      booking_required: false,
-      details: "Silver Zone and Purple Zone parking, shuttle service"
-    },
-    taxi_services: ["Bristol Airport Taxis", "Uber", "A1 Taxis"],
-    car_hire: ["Hertz", "Avis", "Enterprise", "Budget"],
-    terminal_count: 1
+    name: "Barcelona-El Prat Airport",
+    iata_code: "BCN",
+    icao_code: "LEBL",
+    country: "Spain",
+    city: "Barcelona",
+    lat: 41.2971,
+    lon: 2.0785,
+    timezone: "Europe/Madrid",
+    website: "https://www.aena.es"
   },
   {
-    name: "Newcastle Airport",
-    iata: "NCL",
-    icao: "EGNT",
-    city: "Newcastle",
-    region: "Tyne and Wear",
-    lat: 55.0375,
-    lon: -1.6917,
-    website: "https://www.newcastleairport.com",
-    wifi: {
-      available: true,
-      free: true,
-      details: "Free WiFi throughout - Newcastle_Airport_WiFi"
-    },
-    accessibility: {
-      wheelchair_accessible: true,
-      assistance_available: true,
-      details: "Full accessibility, assistance dogs welcome"
-    },
-    parking: {
-      available: true,
-      cost_per_day: "£5-15",
-      booking_required: false,
-      details: "Short and long stay parking, good value rates"
-    },
-    taxi_services: ["Newcastle Airport Taxis", "Uber", "Noda Taxis"],
-    car_hire: ["Hertz", "Avis", "Enterprise", "Budget"],
-    terminal_count: 1
+    name: "Madrid-Barajas Airport",
+    iata_code: "MAD",
+    icao_code: "LEMD",
+    country: "Spain",
+    city: "Madrid",
+    lat: 40.4719,
+    lon: -3.5626,
+    timezone: "Europe/Madrid",
+    website: "https://www.aena.es"
   },
   {
-    name: "Liverpool John Lennon Airport",
-    iata: "LPL",
-    icao: "EGGP",
-    city: "Liverpool",
-    region: "Merseyside",
-    lat: 53.3336,
-    lon: -2.8497,
-    website: "https://www.liverpoolairport.com",
-    wifi: {
-      available: true,
-      free: true,
-      details: "Free WiFi available - Liverpool_Airport_WiFi"
-    },
-    accessibility: {
-      wheelchair_accessible: true,
-      assistance_available: true,
-      details: "Wheelchair accessible, assistance available"
-    },
-    parking: {
-      available: true,
-      cost_per_day: "£4-12",
-      booking_required: false,
-      details: "Affordable parking rates, pre-book for discounts"
-    },
-    taxi_services: ["Liverpool Airport Taxis", "Uber", "Delta Taxis"],
-    car_hire: ["Hertz", "Avis", "Enterprise"],
-    terminal_count: 1
+    name: "Rome Fiumicino Airport",
+    iata_code: "FCO",
+    icao_code: "LIRF",
+    country: "Italy",
+    city: "Rome",
+    lat: 41.8003,
+    lon: 12.2389,
+    timezone: "Europe/Rome",
+    website: "https://www.adr.it"
   },
   {
-    name: "Leeds Bradford Airport",
-    iata: "LBA",
-    icao: "EGNM",
-    city: "Leeds",
-    region: "West Yorkshire",
-    lat: 53.8659,
-    lon: -1.6606,
-    website: "https://www.leedsbradfordairport.co.uk",
-    wifi: {
-      available: true,
-      free: true,
-      details: "Free WiFi throughout terminal"
-    },
-    accessibility: {
-      wheelchair_accessible: true,
-      assistance_available: true,
-      details: "Wheelchair accessible, assistance available with booking"
-    },
-    parking: {
-      available: true,
-      cost_per_day: "£5-14",
-      booking_required: false,
-      details: "Good value parking, shuttle to terminal"
-    },
-    taxi_services: ["Leeds Bradford Taxis", "Uber", "Amber Cars"],
-    car_hire: ["Hertz", "Avis", "Enterprise"],
-    terminal_count: 1
+    name: "Milan Malpensa Airport",
+    iata_code: "MXP",
+    icao_code: "LIMC",
+    country: "Italy",
+    city: "Milan",
+    lat: 45.6306,
+    lon: 8.7281,
+    timezone: "Europe/Rome",
+    website: "https://www.milanomalpensa.eu"
   },
   {
-    name: "Belfast International Airport",
-    iata: "BFS",
-    icao: "EGAA",
-    city: "Belfast",
-    region: "Northern Ireland",
-    lat: 54.6575,
-    lon: -6.2158,
-    website: "https://www.belfastairport.com",
-    wifi: {
-      available: true,
-      free: true,
-      details: "Free WiFi throughout - Belfast_Airport_WiFi"
-    },
-    accessibility: {
-      wheelchair_accessible: true,
-      assistance_available: true,
-      details: "Full wheelchair access, assistance available"
-    },
-    parking: {
-      available: true,
-      cost_per_day: "£4-12",
-      booking_required: false,
-      details: "Multiple parking options, good value rates"
-    },
-    taxi_services: ["Belfast Airport Taxis", "Uber", "Value Cabs"],
-    car_hire: ["Hertz", "Avis", "Enterprise", "Budget"],
-    terminal_count: 1
+    name: "Zurich Airport",
+    iata_code: "ZUR",
+    icao_code: "LSZH",
+    country: "Switzerland",
+    city: "Zurich",
+    lat: 47.4647,
+    lon: 8.5492,
+    timezone: "Europe/Zurich",
+    website: "https://www.flughafen-zuerich.ch"
+  },
+  {
+    name: "Vienna International Airport",
+    iata_code: "VIE",
+    icao_code: "LOWW",
+    country: "Austria",
+    city: "Vienna",
+    lat: 48.1103,
+    lon: 16.5697,
+    timezone: "Europe/Vienna",
+    website: "https://www.viennaairport.com"
+  },
+  {
+    name: "Brussels Airport",
+    iata_code: "BRU",
+    icao_code: "EBBR",
+    country: "Belgium",
+    city: "Brussels",
+    lat: 50.9014,
+    lon: 4.4844,
+    timezone: "Europe/Brussels",
+    website: "https://www.brusselsairport.be"
+  },
+  {
+    name: "Copenhagen Airport",
+    iata_code: "CPH",
+    icao_code: "EKCH",
+    country: "Denmark",
+    city: "Copenhagen",
+    lat: 55.6181,
+    lon: 12.6561,
+    timezone: "Europe/Copenhagen",
+    website: "https://www.cph.dk"
+  },
+  {
+    name: "Stockholm Arlanda Airport",
+    iata_code: "ARN",
+    icao_code: "ESSA",
+    country: "Sweden",
+    city: "Stockholm",
+    lat: 59.6519,
+    lon: 17.9186,
+    timezone: "Europe/Stockholm",
+    website: "https://www.swedavia.com"
+  },
+  {
+    name: "Oslo Airport",
+    iata_code: "OSL",
+    icao_code: "ENGM",
+    country: "Norway",
+    city: "Oslo",
+    lat: 60.1939,
+    lon: 11.1004,
+    timezone: "Europe/Oslo",
+    website: "https://avinor.no"
+  },
+  {
+    name: "Dublin Airport",
+    iata_code: "DUB",
+    icao_code: "EIDW",
+    country: "Ireland",
+    city: "Dublin",
+    lat: 53.4213,
+    lon: -6.2701,
+    timezone: "Europe/Dublin",
+    website: "https://www.dublinairport.com"
+  },
+  {
+    name: "Lisbon Airport",
+    iata_code: "LIS",
+    icao_code: "LPPT",
+    country: "Portugal",
+    city: "Lisbon",
+    lat: 38.7813,
+    lon: -9.1363,
+    timezone: "Europe/Lisbon",
+    website: "https://www.ana.pt"
+  },
+  {
+    name: "Athens International Airport",
+    iata_code: "ATH",
+    icao_code: "LGAV",
+    country: "Greece",
+    city: "Athens",
+    lat: 37.9364,
+    lon: 23.9445,
+    timezone: "Europe/Athens",
+    website: "https://www.aia.gr"
+  },
+  {
+    name: "Istanbul Airport",
+    iata_code: "IST",
+    icao_code: "LTFM",
+    country: "Turkey",
+    city: "Istanbul",
+    lat: 41.2619,
+    lon: 28.7414,
+    timezone: "Europe/Istanbul",
+    website: "https://www.istairport.com"
   }
 ];
 
-export default function FlightsScreen() {
+export default function AirportsScreen() {
   const [searchQuery, setSearchQuery] = useState('');
-  const [searchResults, setSearchResults] = useState<UKAirport[]>(ukAirports);
-  const [selectedAirport, setSelectedAirport] = useState<UKAirport | null>(null);
-  const [loading, setLoading] = useState(false);
+  const [filteredAirports, setFilteredAirports] = useState<Airport[]>(majorAirports);
+  const [refreshing, setRefreshing] = useState(false);
 
-  const handleSearch = () => {
+  useEffect(() => {
+    filterAirports();
+  }, [searchQuery]);
+
+  const filterAirports = () => {
     if (!searchQuery.trim()) {
-      setSearchResults(ukAirports);
+      setFilteredAirports(majorAirports);
       return;
     }
 
     const query = searchQuery.toLowerCase();
-    const filtered = ukAirports.filter(airport =>
+    const filtered = majorAirports.filter(airport =>
       airport.name.toLowerCase().includes(query) ||
-      airport.iata.toLowerCase().includes(query) ||
-      airport.icao.toLowerCase().includes(query) ||
+      airport.iata_code.toLowerCase().includes(query) ||
+      airport.icao_code.toLowerCase().includes(query) ||
       airport.city.toLowerCase().includes(query) ||
-      airport.region.toLowerCase().includes(query)
+      airport.country.toLowerCase().includes(query)
     );
 
-    setSearchResults(filtered);
+    setFilteredAirports(filtered);
+  };
+
+  const onRefresh = async () => {
+    setRefreshing(true);
+    await new Promise(resolve => setTimeout(resolve, 1000));
+    filterAirports();
+    setRefreshing(false);
   };
 
   const openWebsite = (url: string) => {
@@ -394,181 +287,99 @@ export default function FlightsScreen() {
     }
   };
 
-  const openMaps = (airport: UKAirport) => {
-    const url = `https://www.google.com/maps/search/?api=1&query=${airport.lat},${airport.lon}`;
-    if (typeof window !== 'undefined') {
-      window.open(url, '_blank');
-    }
-  };
-
-  const renderAirportCard = (airport: UKAirport) => (
-    <View key={airport.iata} style={styles.airportCard}>
+  const renderAirportCard = (airport: Airport) => (
+    <View key={airport.iata_code} style={styles.airportCard}>
       <View style={styles.airportHeader}>
         <View style={styles.airportCodes}>
-          <Text style={styles.airportIata}>{airport.iata}</Text>
-          <Text style={styles.airportIcao}>{airport.icao}</Text>
+          <Text style={styles.airportIata}>{airport.iata_code}</Text>
+          <Text style={styles.airportIcao}>{airport.icao_code}</Text>
         </View>
-        <View style={styles.locationInfo}>
-          <MapPin size={16} color="#64748b" />
-          <Text style={styles.locationText}>{airport.city}, {airport.region}</Text>
+        <View style={styles.countryInfo}>
+          <Globe size={16} color="#64748b" />
+          <Text style={styles.countryText}>{airport.country}</Text>
         </View>
       </View>
       
       <Text style={styles.airportName}>{airport.name}</Text>
+      <Text style={styles.cityName}>{airport.city}</Text>
       
-      {/* WiFi Info */}
-      <View style={styles.infoSection}>
-        <View style={styles.infoHeader}>
-          {airport.wifi.available ? (
-            <Wifi size={16} color="#10b981" />
-          ) : (
-            <WifiOff size={16} color="#ef4444" />
-          )}
-          <Text style={styles.infoTitle}>WiFi</Text>
+      <View style={styles.airportDetails}>
+        <View style={styles.airportDetail}>
+          <MapPin size={14} color="#64748b" />
+          <Text style={styles.detailText}>
+            {airport.lat.toFixed(4)}, {airport.lon.toFixed(4)}
+          </Text>
         </View>
-        <Text style={styles.infoText}>
-          {airport.wifi.free ? '✅ Free WiFi' : '❌ Paid WiFi'} - {airport.wifi.details}
-        </Text>
+        <View style={styles.airportDetail}>
+          <Clock size={14} color="#64748b" />
+          <Text style={styles.detailText}>{airport.timezone}</Text>
+        </View>
       </View>
 
-      {/* Accessibility Info */}
-      <View style={styles.infoSection}>
-        <View style={styles.infoHeader}>
-          <Accessibility size={16} color="#3b82f6" />
-          <Text style={styles.infoTitle}>Accessibility</Text>
-        </View>
-        <Text style={styles.infoText}>
-          {airport.accessibility.wheelchair_accessible ? '♿ Wheelchair accessible' : '❌ Limited access'} - {airport.accessibility.details}
-        </Text>
-      </View>
-
-      {/* Parking Info */}
-      <View style={styles.infoSection}>
-        <View style={styles.infoHeader}>
-          <Car size={16} color="#f59e0b" />
-          <Text style={styles.infoTitle}>Parking</Text>
-        </View>
-        <Text style={styles.infoText}>
-          {airport.parking.cost_per_day} per day - {airport.parking.details}
-        </Text>
-      </View>
-
-      {/* Car Hire */}
-      <View style={styles.infoSection}>
-        <View style={styles.infoHeader}>
-          <Car size={16} color="#8b5cf6" />
-          <Text style={styles.infoTitle}>Car Hire</Text>
-        </View>
-        <Text style={styles.infoText}>
-          {airport.car_hire.join(', ')}
-        </Text>
-      </View>
-
-      {/* Taxi Services */}
-      <View style={styles.infoSection}>
-        <View style={styles.infoHeader}>
-          <Phone size={16} color="#ec4899" />
-          <Text style={styles.infoTitle}>Taxi Services</Text>
-        </View>
-        <Text style={styles.infoText}>
-          {airport.taxi_services.join(', ')}
-        </Text>
-      </View>
-
-      {/* Action Buttons */}
-      <View style={styles.actionButtons}>
+      {airport.website && (
         <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => openWebsite(airport.website)}
+          style={styles.websiteButton}
+          onPress={() => openWebsite(airport.website!)}
         >
-          <Globe size={16} color="#3b82f6" />
-          <Text style={styles.actionText}>Website</Text>
+          <ExternalLink size={14} color="#3b82f6" />
+          <Text style={styles.websiteText}>Visit Website</Text>
         </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => openMaps(airport)}
-        >
-          <Navigation size={16} color="#10b981" />
-          <Text style={styles.actionText}>Directions</Text>
-        </TouchableOpacity>
-        
-        <TouchableOpacity 
-          style={styles.actionButton}
-          onPress={() => setSelectedAirport(airport)}
-        >
-          <Info size={16} color="#f59e0b" />
-          <Text style={styles.actionText}>Details</Text>
-        </TouchableOpacity>
-      </View>
+      )}
     </View>
   );
 
   return (
     <SafeAreaView style={styles.container}>
       <LinearGradient
-        colors={['#0ea5e9', '0284c7']}
+        colors={['#0ea5e9', '#0284c7']}
         style={styles.header}
       >
-        <Text style={styles.headerTitle}>UK Airport Guide</Text>
-        <Text style={styles.headerSubtitle}>Complete airport information & services</Text>
+        <Text style={styles.headerTitle}>Airport Directory</Text>
+        <Text style={styles.headerSubtitle}>Major international airports worldwide</Text>
       </LinearGradient>
 
-      {/* Search */}
       <View style={styles.searchContainer}>
         <View style={styles.searchInputContainer}>
           <Search size={20} color="#64748b" />
           <TextInput
             style={styles.searchInput}
-            placeholder="Search UK airports by name, code, or city..."
+            placeholder="Search airports by name, code, or city..."
             value={searchQuery}
             onChangeText={setSearchQuery}
-            onSubmitEditing={handleSearch}
             placeholderTextColor="#94a3b8"
           />
         </View>
-        <TouchableOpacity style={styles.searchButton} onPress={handleSearch}>
-          <Search size={20} color="#ffffff" />
-        </TouchableOpacity>
       </View>
 
-      {/* Results Count */}
       <View style={styles.resultsHeader}>
+        <Building size={20} color="#3b82f6" />
         <Text style={styles.resultsCount}>
-          {searchResults.length} UK Airport{searchResults.length !== 1 ? 's' : ''} Found
+          {filteredAirports.length} Airport{filteredAirports.length !== 1 ? 's' : ''}
+          {searchQuery ? ` matching "${searchQuery}"` : ''}
         </Text>
       </View>
 
-      <ScrollView style={styles.content} showsVerticalScrollIndicator={false}>
-        {searchResults.map(renderAirportCard)}
-      </ScrollView>
-
-      {/* Airport Details Modal */}
-      {selectedAirport && (
-        <View style={styles.modalOverlay}>
-          <View style={styles.modalContent}>
-            <View style={styles.modalHeader}>
-              <Text style={styles.modalTitle}>{selectedAirport.name}</Text>
-              <TouchableOpacity
-                style={styles.closeButton}
-                onPress={() => setSelectedAirport(null)}
-              >
-                <Text style={styles.closeButtonText}>✕</Text>
-              </TouchableOpacity>
+      <ScrollView
+        style={styles.content}
+        refreshControl={
+          <RefreshControl refreshing={refreshing} onRefresh={onRefresh} />
+        }
+        showsVerticalScrollIndicator={false}
+      >
+        <View style={styles.airportsContainer}>
+          {filteredAirports.length === 0 ? (
+            <View style={styles.emptyContainer}>
+              <Building size={48} color="#94a3b8" />
+              <Text style={styles.emptyTitle}>No airports found</Text>
+              <Text style={styles.emptyText}>
+                Try searching with a different term
+              </Text>
             </View>
-            
-            <ScrollView style={styles.modalBody}>
-              <Text style={styles.modalSection}>📍 Location: {selectedAirport.city}, {selectedAirport.region}</Text>
-              <Text style={styles.modalSection}>🏢 Terminals: {selectedAirport.terminal_count}</Text>
-              <Text style={styles.modalSection}>📶 WiFi: {selectedAirport.wifi.details}</Text>
-              <Text style={styles.modalSection}>♿ Accessibility: {selectedAirport.accessibility.details}</Text>
-              <Text style={styles.modalSection}>🚗 Parking: {selectedAirport.parking.details}</Text>
-              <Text style={styles.modalSection}>🚕 Taxis: {selectedAirport.taxi_services.join(', ')}</Text>
-              <Text style={styles.modalSection}>🚙 Car Hire: {selectedAirport.car_hire.join(', ')}</Text>
-            </ScrollView>
-          </View>
+          ) : (
+            filteredAirports.map(renderAirportCard)
+          )}
         </View>
-      )}
+      </ScrollView>
     </SafeAreaView>
   );
 }
@@ -595,16 +406,13 @@ const styles = StyleSheet.create({
     color: '#bae6fd',
   },
   searchContainer: {
-    flexDirection: 'row',
     paddingHorizontal: 24,
     paddingVertical: 16,
     backgroundColor: '#ffffff',
     borderBottomWidth: 1,
     borderBottomColor: '#e2e8f0',
-    gap: 12,
   },
   searchInputContainer: {
-    flex: 1,
     flexDirection: 'row',
     alignItems: 'center',
     backgroundColor: '#f8fafc',
@@ -620,15 +428,9 @@ const styles = StyleSheet.create({
     marginLeft: 12,
     paddingVertical: 12,
   },
-  searchButton: {
-    backgroundColor: '#0ea5e9',
-    borderRadius: 12,
-    width: 48,
-    height: 48,
-    alignItems: 'center',
-    justifyContent: 'center',
-  },
   resultsHeader: {
+    flexDirection: 'row',
+    alignItems: 'center',
     paddingHorizontal: 24,
     paddingVertical: 12,
     backgroundColor: '#f8fafc',
@@ -636,14 +438,34 @@ const styles = StyleSheet.create({
     borderBottomColor: '#e2e8f0',
   },
   resultsCount: {
-    fontSize: 14,
-    color: '#64748b',
+    fontSize: 16,
     fontWeight: '600',
+    color: '#1e293b',
+    marginLeft: 8,
   },
   content: {
     flex: 1,
+  },
+  airportsContainer: {
     paddingHorizontal: 24,
-    paddingTop: 16,
+    paddingTop: 20,
+    paddingBottom: 32,
+  },
+  emptyContainer: {
+    alignItems: 'center',
+    paddingVertical: 64,
+  },
+  emptyTitle: {
+    fontSize: 20,
+    fontWeight: 'bold',
+    color: '#1e293b',
+    marginTop: 16,
+    marginBottom: 8,
+  },
+  emptyText: {
+    fontSize: 16,
+    color: '#64748b',
+    textAlign: 'center',
   },
   airportCard: {
     backgroundColor: '#ffffff',
@@ -652,6 +474,11 @@ const styles = StyleSheet.create({
     marginBottom: 16,
     borderWidth: 1,
     borderColor: '#e2e8f0',
+    shadowColor: '#000',
+    shadowOffset: { width: 0, height: 2 },
+    shadowOpacity: 0.05,
+    shadowRadius: 8,
+    elevation: 2,
   },
   airportHeader: {
     flexDirection: 'row',
@@ -662,12 +489,12 @@ const styles = StyleSheet.create({
   airportCodes: {
     flexDirection: 'row',
     alignItems: 'center',
-    gap: 8,
+    gap: 12,
   },
   airportIata: {
-    fontSize: 20,
+    fontSize: 24,
     fontWeight: 'bold',
-    color: '#1e293b',
+    color: '#0ea5e9',
   },
   airportIcao: {
     fontSize: 14,
@@ -676,12 +503,13 @@ const styles = StyleSheet.create({
     paddingHorizontal: 8,
     paddingVertical: 4,
     borderRadius: 8,
+    fontFamily: 'monospace',
   },
-  locationInfo: {
+  countryInfo: {
     flexDirection: 'row',
     alignItems: 'center',
   },
-  locationText: {
+  countryText: {
     fontSize: 14,
     color: '#64748b',
     marginLeft: 4,
@@ -690,95 +518,42 @@ const styles = StyleSheet.create({
     fontSize: 18,
     fontWeight: 'bold',
     color: '#1e293b',
-    marginBottom: 16,
-  },
-  infoSection: {
-    marginBottom: 12,
-  },
-  infoHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
     marginBottom: 4,
   },
-  infoTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginLeft: 8,
-  },
-  infoText: {
-    fontSize: 13,
+  cityName: {
+    fontSize: 16,
     color: '#64748b',
-    lineHeight: 18,
-    marginLeft: 24,
-  },
-  actionButtons: {
-    flexDirection: 'row',
-    gap: 8,
-    marginTop: 16,
-  },
-  actionButton: {
-    flex: 1,
-    flexDirection: 'row',
-    alignItems: 'center',
-    justifyContent: 'center',
-    backgroundColor: '#f8fafc',
-    borderRadius: 8,
-    paddingVertical: 10,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    gap: 4,
-  },
-  actionText: {
-    fontSize: 12,
-    fontWeight: '600',
-    color: '#64748b',
-  },
-  modalOverlay: {
-    position: 'absolute',
-    top: 0,
-    left: 0,
-    right: 0,
-    bottom: 0,
-    backgroundColor: 'rgba(0, 0, 0, 0.5)',
-    justifyContent: 'center',
-    alignItems: 'center',
-    padding: 20,
-  },
-  modalContent: {
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 20,
-    maxHeight: '80%',
-    width: '100%',
-    maxWidth: 400,
-  },
-  modalHeader: {
-    flexDirection: 'row',
-    justifyContent: 'space-between',
-    alignItems: 'center',
     marginBottom: 16,
   },
-  modalTitle: {
-    fontSize: 18,
-    fontWeight: 'bold',
-    color: '#1e293b',
+  airportDetails: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    marginBottom: 16,
+  },
+  airportDetail: {
+    flexDirection: 'row',
+    alignItems: 'center',
     flex: 1,
   },
-  closeButton: {
-    padding: 8,
-  },
-  closeButtonText: {
-    fontSize: 18,
+  detailText: {
+    fontSize: 12,
     color: '#64748b',
+    marginLeft: 6,
   },
-  modalBody: {
-    maxHeight: 300,
+  websiteButton: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    justifyContent: 'center',
+    backgroundColor: '#eff6ff',
+    borderRadius: 8,
+    padding: 12,
+    borderWidth: 1,
+    borderColor: '#bfdbfe',
   },
-  modalSection: {
+  websiteText: {
     fontSize: 14,
-    color: '#64748b',
-    lineHeight: 20,
-    marginBottom: 12,
+    fontWeight: '600',
+    color: '#3b82f6',
+    marginLeft: 6,
   },
 });

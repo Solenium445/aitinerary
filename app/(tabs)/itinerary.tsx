@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import { useFocusEffect } from '@react-navigation/native';
 import {
   View,
   Text,
@@ -32,11 +33,11 @@ import {
   Utensils,
   TreePine,
   Music,
-  Sun,
-  Thermometer,
-  Globe
+  Sun
 } from 'lucide-react-native';
 import ItineraryMap from '@/components/ItineraryMap';
+import { loadItinerary } from '@/utils/storage';
+import { useCallback } from 'react';
 
 interface Activity {
   id: string;
@@ -74,24 +75,6 @@ interface Itinerary {
   endDate?: string;
 }
 
-interface WeatherData {
-  current: number;
-  condition: string;
-  icon: string;
-  forecast: Array<{
-    day: string;
-    high: number;
-    low: number;
-    icon: string;
-  }>;
-}
-
-interface TimeData {
-  localTime: string;
-  timezone: string;
-  utcOffset: string;
-}
-
 export default function ItineraryScreen() {
   const [itinerary, setItinerary] = useState<Itinerary | null>(null);
   const [loading, setLoading] = useState(true);
@@ -101,383 +84,130 @@ export default function ItineraryScreen() {
   const [selectedDay, setSelectedDay] = useState<number>(1);
   const [swappingActivity, setSwappingActivity] = useState<string | null>(null);
   const [swappedActivities, setSwappedActivities] = useState<Set<string>>(new Set());
-  const [weatherData, setWeatherData] = useState<WeatherData | null>(null);
-  const [timeData, setTimeData] = useState<TimeData | null>(null);
 
-  useEffect(() => {
-    loadItinerary();
-  }, []);
-
-  useEffect(() => {
-    if (itinerary?.destination || itinerary?.location) {
-      generateWeatherData(itinerary.destination || itinerary.location || 'London');
-      generateTimeData(itinerary.destination || itinerary.location || 'London');
-    }
-  }, [itinerary]);
-
-  const generateWeatherData = (destination: string) => {
-    const weatherPatterns = {
-      'epsom': { base: 12, variation: 8, icons: ['⛅', '🌦️', '☁️', '🌤️', '☀️'] },
-      'london': { base: 14, variation: 6, icons: ['☁️', '🌦️', '⛅', '🌤️', '☀️'] },
-      'barcelona': { base: 22, variation: 8, icons: ['☀️', '⛅', '🌤️', '☀️', '⛅'] },
-      'madrid': { base: 20, variation: 10, icons: ['☀️', '⛅', '🌤️', '☀️', '⛅'] },
-      'paris': { base: 16, variation: 6, icons: ['⛅', '🌦️', '☁️', '🌤️', '☀️'] },
-      'rome': { base: 24, variation: 7, icons: ['☀️', '🌤️', '⛅', '☀️', '🌤️'] },
-      'uk': { base: 12, variation: 8, icons: ['⛅', '🌦️', '☁️', '🌤️', '☀️'] },
-    };
-
-    const destKey = destination.toLowerCase().replace(/\s+/g, '').replace(',', '');
-    let pattern = weatherPatterns[destKey];
-    
-    if (!pattern) {
-      if (destKey.includes('uk') || destKey.includes('england') || destKey.includes('britain')) {
-        pattern = weatherPatterns['uk'];
-      } else {
-        pattern = weatherPatterns['london'];
-      }
-    }
-
-    const currentTemp = pattern.base + Math.floor(Math.random() * pattern.variation) - pattern.variation / 2;
-    const currentIcon = pattern.icons[Math.floor(Math.random() * pattern.icons.length)];
-    
-    const forecast = ['Today', 'Tomorrow', 'Wed', 'Thu', 'Fri'].map((day, index) => {
-      const high = pattern.base + Math.floor(Math.random() * pattern.variation) - pattern.variation / 4;
-      const low = high - 3 - Math.floor(Math.random() * 5);
-      return {
-        day,
-        high,
-        low,
-        icon: pattern.icons[index % pattern.icons.length],
-      };
-    });
-
-    setWeatherData({
-      current: currentTemp,
-      condition: getWeatherCondition(currentIcon),
-      icon: currentIcon,
-      forecast,
-    });
-  };
-
-  const generateTimeData = (destination: string) => {
-    const timezones = {
-      'epsom': { timezone: 'Europe/London', offset: '+0' },
-      'london': { timezone: 'Europe/London', offset: '+0' },
-      'barcelona': { timezone: 'Europe/Madrid', offset: '+1' },
-      'madrid': { timezone: 'Europe/Madrid', offset: '+1' },
-      'paris': { timezone: 'Europe/Paris', offset: '+1' },
-      'rome': { timezone: 'Europe/Rome', offset: '+1' },
-      'uk': { timezone: 'Europe/London', offset: '+0' },
-    };
-
-    const destKey = destination.toLowerCase().replace(/\s+/g, '').replace(',', '');
-    let timeInfo = timezones[destKey];
-    
-    if (!timeInfo) {
-      if (destKey.includes('uk') || destKey.includes('england') || destKey.includes('britain')) {
-        timeInfo = timezones['uk'];
-      } else {
-        timeInfo = timezones['london'];
-      }
-    }
-
-    const now = new Date();
-    const offsetHours = parseInt(timeInfo.offset);
-    const localTime = new Date(now.getTime() + (offsetHours * 60 * 60 * 1000));
-    
-    setTimeData({
-      localTime: localTime.toLocaleTimeString('en-GB', { 
-        hour: '2-digit', 
-        minute: '2-digit',
-        hour12: false 
-      }),
-      timezone: timeInfo.timezone.split('/')[1],
-      utcOffset: `UTC${timeInfo.offset === '+0' ? '' : timeInfo.offset}`,
-    });
-  };
-
-  const getWeatherCondition = (icon: string) => {
-    switch (icon) {
-      case '☀️': return 'Sunny';
-      case '🌤️': return 'Partly Cloudy';
-      case '⛅': return 'Cloudy';
-      case '☁️': return 'Overcast';
-      case '🌦️': return 'Light Rain';
-      case '🌧️': return 'Rainy';
-      default: return 'Clear';
-    }
-  };
-
-  const loadItinerary = () => {
+  // Wrap loadItineraryData in useCallback to prevent infinite loops
+  const loadItineraryData = useCallback(async () => {
+    console.log('🎯 ITINERARY SCREEN: Loading latest itinerary data...');
     try {
-      console.log('🔍 Starting itinerary load process...');
+      setLoading(true);
+      const savedItinerary = await loadItinerary();
       
-      // First check global memory storage (fallback when localStorage unavailable)
-      if ((global as any).currentItinerary) {
-        console.log('🧠 Found itinerary in global memory storage');
-        const memoryItinerary = (global as any).currentItinerary;
-        console.log('📋 Memory itinerary details:', {
-          destination: memoryItinerary.destination || memoryItinerary.location,
-          days: memoryItinerary.days?.length || 0,
-          cost: memoryItinerary.total_estimated_cost_gbp,
+      if (savedItinerary) {
+        console.log('📋 ITINERARY SCREEN: Loaded itinerary:', {
+          destination: savedItinerary.destination || savedItinerary.location,
+          days: savedItinerary.days?.length,
+          savedAt: savedItinerary.savedAt,
+          generatedAt: savedItinerary.generatedAt,
+          version: savedItinerary.version,
+          isLatest: savedItinerary.isLatest,
+          isNewGeneration: savedItinerary.isNewGeneration
         });
         
-        if (memoryItinerary.days && Array.isArray(memoryItinerary.days) && memoryItinerary.days.length >= 1) {
-          console.log('✅ Valid itinerary found in memory, loading...');
-          setItinerary(memoryItinerary);
+        // Check if this is an old format itinerary
+        if (!savedItinerary.savedAt && !savedItinerary.generatedAt && !savedItinerary.version) {
+          console.log('🗑️ DETECTED OLD FORMAT ITINERARY in itinerary screen');
+          console.log('🔄 Clearing old itinerary and showing empty state...');
+          
+          // Clear the old itinerary
+          if (typeof localStorage !== 'undefined') {
+            localStorage.removeItem('currentItinerary');
+          }
+          
+          // Show empty state to encourage new generation
+          setItinerary(null);
           setLoading(false);
           return;
         }
-      }
-      
-      // Try to load from localStorage first
-      if (typeof localStorage !== 'undefined') {
-        console.log('💾 Checking localStorage for currentItinerary...');
-        const savedItinerary = localStorage.getItem('currentItinerary');
-        if (savedItinerary) {
-          try {
-            const parsed = JSON.parse(savedItinerary);
-            console.log('📋 Found saved itinerary in localStorage:', {
-              destination: parsed.destination || parsed.location,
-              days: parsed.days?.length || 0,
-              cost: parsed.total_estimated_cost_gbp,
-              hasActivities: parsed.days?.[0]?.activities?.length > 0,
-              firstActivity: parsed.days?.[0]?.activities?.[0]?.title,
-              allDayNumbers: parsed.days?.map(d => d.day_number) || [],
-              dateRange: parsed.days ? `${parsed.days[0]?.date} to ${parsed.days[parsed.days.length - 1]?.date}` : 'No dates'
-            });
-            
-            // Validate the data structure
-            if (parsed.days && Array.isArray(parsed.days) && parsed.days.length >= 1) {
-              console.log('✅ Valid itinerary structure found, loading...');
-              console.log(`📊 Loading itinerary with ${parsed.days.length} days, cost £${parsed.total_estimated_cost_gbp}`);
-              setItinerary(parsed);
-              setLoading(false);
-              return;
-            } else {
-              console.log('⚠️ Invalid itinerary structure in localStorage');
-              console.log('📊 Data structure:', { 
-                hasDays: !!parsed.days, 
-                isArray: Array.isArray(parsed.days), 
-                length: parsed.days?.length 
-              });
-            }
-          } catch (parseError) {
-            console.error('❌ Error parsing saved itinerary:', parseError);
-          }
+        
+        // Verify this is the latest itinerary
+        if (savedItinerary.isNewGeneration || savedItinerary.isLatest || savedItinerary.savedAt) {
+          console.log('✅ CONFIRMED: This is the LATEST generated itinerary');
         } else {
-          console.log('📋 No currentItinerary found in localStorage');
+          console.log('⚠️ WARNING: This might be an older itinerary');
         }
         
-        // Check for any other itinerary keys
-        console.log('🔍 Checking all localStorage keys for itinerary data...');
-        const allKeys = Object.keys(localStorage);
-        console.log('📋 Available keys:', allKeys);
-        
-        for (const key of allKeys) {
-          if (key.includes('itinerary') || key.includes('trip') || key.includes('Itinerary')) {
-            console.log(`🔍 Found potential itinerary key: ${key}`);
-            try {
-              const data = localStorage.getItem(key);
-              if (data) {
-                const parsed = JSON.parse(data);
-                console.log(`📋 Data from ${key}:`, {
-                  hasDays: !!parsed.days,
-                  daysLength: parsed.days?.length,
-                  destination: parsed.destination || parsed.location,
-                  cost: parsed.total_estimated_cost_gbp,
-                  firstDay: parsed.days?.[0]?.date,
-                  lastDay: parsed.days?.[parsed.days?.length - 1]?.date
-                });
-                
-                if (parsed.days && Array.isArray(parsed.days) && parsed.days.length >= 1) {
-                  console.log(`✅ Using valid itinerary from ${key} with ${parsed.days.length} days`);
-                  setItinerary(parsed);
-                  setLoading(false);
-                  return;
-                }
-              }
-            } catch (error) {
-              console.log(`❌ Failed to parse data from ${key}:`, error);
-            }
-          }
-        }
+        setItinerary(savedItinerary);
       } else {
-        console.log('⚠️ localStorage not available');
-      }
-      
-      console.log('🔄 Falling back to user data check...');
-      
-      // Try to load from user's saved itineraries
-      loadFromUserData();
-      
-    } catch (error) {
-      console.error('Error loading itinerary:', error);
-      loadSampleData();
-    }
-  };
-
-  const loadFromUserData = async () => {
-    try {
-      console.log('🗄️ Attempting to load from user database...');
-      
-      // Try to get the most recent itinerary from the user's saved data
-      // This would integrate with useUserItineraries hook
-      
-      // For now, check if there's any other stored data
-      if (typeof localStorage !== 'undefined') {
-        const keys = Object.keys(localStorage);
-        console.log('🔍 Available localStorage keys:', keys);
+        console.log('ℹ️ ITINERARY SCREEN: No saved itinerary found, loading sample data');
+        // Fallback to sample data
+        const sampleItinerary: Itinerary = {
+          days: [
+            {
+              date: new Date().toISOString().split('T')[0],
+              day_number: 1,
+              activities: [
+                {
+                  id: 'day1_activity1',
+                  time: '09:00',
+                  title: 'Welcome Breakfast',
+                  description: 'Start your adventure with a traditional local breakfast at a charming neighborhood café.',
+                  location: 'Local Café District',
+                  type: 'morning',
+                  confidence: 92,
+                  estimated_cost_gbp: 15,
+                  duration_hours: 1,
+                  booking_required: false,
+                  local_tip: 'Try the local pastries - they\'re freshly baked every morning!',
+                },
+                {
+                  id: 'day1_activity2',
+                  time: '11:00',
+                  title: 'City Center Exploration',
+                  description: 'Discover the heart of the city with its historic architecture and vibrant street life.',
+                  location: 'Historic City Center',
+                  type: 'morning',
+                  confidence: 88,
+                  estimated_cost_gbp: 0,
+                  duration_hours: 2,
+                  booking_required: false,
+                  local_tip: 'Look for the hidden courtyards - they often have the most beautiful architecture.',
+                },
+                {
+                  id: 'day1_activity3',
+                  time: '14:00',
+                  title: 'Local Market Experience',
+                  description: 'Immerse yourself in local culture at the bustling market with fresh produce and artisanal goods.',
+                  location: 'Central Market',
+                  type: 'afternoon',
+                  confidence: 90,
+                  estimated_cost_gbp: 25,
+                  duration_hours: 2,
+                  booking_required: false,
+                  local_tip: 'Bring cash and don\'t be afraid to sample the local specialties!',
+                },
+              ],
+            },
+          ],
+          total_estimated_cost_gbp: 40,
+          currency: 'GBP',
+          destination: 'Your Destination',
+        };
         
-        // Look for any itinerary-related data
-        for (const key of keys) {
-          if (key.includes('itinerary') || key.includes('trip')) {
-            console.log(`🔍 Found potential itinerary data in key: ${key}`);
-            try {
-              const data = localStorage.getItem(key);
-              if (data) {
-                const parsed = JSON.parse(data);
-                if (parsed.days && Array.isArray(parsed.days) && parsed.days.length > 0) {
-                  console.log(`✅ Using itinerary from ${key}`);
-                  setItinerary(parsed);
-                  setLoading(false);
-                  return;
-                }
-              }
-            } catch (error) {
-              console.log(`❌ Failed to parse data from ${key}`);
-            }
-          }
-        }
+        setItinerary(sampleItinerary);
+        console.log('📋 ITINERARY SCREEN: Sample itinerary loaded as fallback');
       }
-      
-      console.log('📋 No user data found, loading sample data as final fallback');
-      loadSampleData();
     } catch (error) {
-      console.error('Error loading from user data:', error);
-      loadSampleData();
-    }
-  };
-
-  const loadSampleData = () => {
-    console.log('📋 Loading sample itinerary data');
-    try {
-      // Get current date for realistic sample data
-      const today = new Date();
-      const tomorrow = new Date(today);
-      tomorrow.setDate(today.getDate() + 1);
-      
-      // Fallback to sample data
-      const sampleItinerary: Itinerary = {
-        days: [
-          {
-            date: today.toISOString().split('T')[0],
-            day_number: 1,
-            activities: [
-              {
-                id: 'day1_activity1',
-                time: '09:00',
-                title: 'Historic City Center',
-                description: 'Explore the charming historic center with its traditional architecture and cultural landmarks.',
-                location: 'City Center',
-                type: 'morning',
-                confidence: 92,
-                estimated_cost_gbp: 0,
-                duration_hours: 2,
-                booking_required: false,
-                local_tip: 'Start early to avoid crowds and get the best photos',
-              },
-              {
-                id: 'day1_activity2',
-                time: '14:00',
-                title: 'Local Cuisine Experience',
-                description: 'Enjoy authentic local cuisine at a traditional restaurant with regional specialties.',
-                location: 'Restaurant District',
-                type: 'afternoon',
-                confidence: 88,
-                estimated_cost_gbp: 35,
-                duration_hours: 2,
-                booking_required: true,
-                local_tip: 'Try the chef\'s recommendation for the most authentic experience',
-              },
-              {
-                id: 'day1_activity3',
-                time: '19:00',
-                title: 'Evening Stroll & Views',
-                description: 'Take a relaxing evening walk to scenic viewpoints and enjoy the sunset.',
-                location: 'Scenic Overlook',
-                type: 'evening',
-                confidence: 90,
-                estimated_cost_gbp: 0,
-                duration_hours: 2,
-                booking_required: false,
-                local_tip: 'Best time for photos is during golden hour',
-              },
-            ],
-          },
-          {
-            date: tomorrow.toISOString().split('T')[0],
-            day_number: 2,
-            activities: [
-              {
-                id: 'day2_activity1',
-                time: '10:00',
-                title: 'Museum & Culture',
-                description: 'Discover local history and culture at the city\'s premier museum.',
-                location: 'Cultural District',
-                type: 'morning',
-                confidence: 95,
-                estimated_cost_gbp: 20,
-                duration_hours: 3,
-                booking_required: false,
-                local_tip: 'Audio guides are available in multiple languages',
-              },
-              {
-                id: 'day2_activity2',
-                time: '15:00',
-                title: 'Shopping & Souvenirs',
-                description: 'Browse local shops and markets for unique souvenirs and gifts.',
-                location: 'Shopping Quarter',
-                type: 'afternoon',
-                confidence: 87,
-                estimated_cost_gbp: 25,
-                duration_hours: 1.5,
-                booking_required: false,
-                local_tip: 'Look for locally made crafts and artisanal products',
-              },
-            ],
-          },
-        ],
-        total_estimated_cost_gbp: 80,
-        currency: 'GBP',
-        travel_tips: [
-          'Download offline maps before exploring',
-          'Learn basic local phrases for better interactions',
-          'Carry cash for small vendors and tips',
-          'Book popular attractions in advance',
-        ],
-        local_phrases: [
-          { english: 'Hello', local: 'Hola', pronunciation: 'OH-lah' },
-          { english: 'Thank you', local: 'Gracias', pronunciation: 'GRAH-see-ahs' },
-          { english: 'Excuse me', local: 'Perdón', pronunciation: 'per-DOHN' },
-        ],
-        destination: 'Sample Destination',
-      };
-      
-      setItinerary(sampleItinerary);
-      console.log('📋 Sample itinerary loaded with', sampleItinerary.days.length, 'days');
-    } catch (error) {
-      console.error('Error loading itinerary:', error);
-      Alert.alert('Error', 'Failed to load itinerary');
+      console.error('❌ ITINERARY SCREEN: Error loading itinerary:', error);
     } finally {
       setLoading(false);
     }
-  };
+  }, []); // Empty dependency array - only recreate if component unmounts/mounts
+
+  // Use useFocusEffect to load data when tab becomes active
+  useFocusEffect(
+    React.useCallback(() => {
+      const fetchData = async () => {
+        console.log('🎯 Itinerary screen focused, loading data...');
+        await loadItineraryData();
+      };
+      fetchData();
+    }, [])
+  );
 
   const onRefresh = async () => {
     setRefreshing(true);
     await new Promise(resolve => setTimeout(resolve, 1000)); // Simulate refresh
-    loadItinerary();
+    await loadItineraryData();
     setRefreshing(false);
   };
 
@@ -530,11 +260,9 @@ export default function ItineraryScreen() {
             
             const updatedItinerary = { ...prev, days: updatedDays };
             
-            // Save to localStorage if available, otherwise use global storage
+            // Save to localStorage
             if (typeof localStorage !== 'undefined') {
               localStorage.setItem('currentItinerary', JSON.stringify(updatedItinerary));
-            } else {
-              (global as any).currentItinerary = updatedItinerary;
             }
             
             return updatedItinerary;
@@ -763,48 +491,6 @@ export default function ItineraryScreen() {
         }
         showsVerticalScrollIndicator={false}
       >
-        {/* Weather and Time Cards */}
-        <View style={styles.infoCardsContainer}>
-          {/* Weather Card */}
-          {weatherData && (
-            <View style={styles.weatherCard}>
-              <View style={styles.weatherHeader}>
-                <Thermometer size={20} color="#f59e0b" />
-                <Text style={styles.weatherTitle}>Weather</Text>
-              </View>
-              <View style={styles.currentWeather}>
-                <Text style={styles.weatherIcon}>{weatherData.icon}</Text>
-                <View>
-                  <Text style={styles.currentTemp}>{weatherData.current}°C</Text>
-                  <Text style={styles.weatherCondition}>{weatherData.condition}</Text>
-                </View>
-              </View>
-              <ScrollView horizontal style={styles.forecastContainer} showsHorizontalScrollIndicator={false}>
-                {weatherData.forecast.slice(0, 4).map((day, index) => (
-                  <View key={index} style={styles.forecastDay}>
-                    <Text style={styles.forecastDayLabel}>{day.day}</Text>
-                    <Text style={styles.forecastIcon}>{day.icon}</Text>
-                    <Text style={styles.forecastTemp}>{day.high}°/{day.low}°</Text>
-                  </View>
-                ))}
-              </ScrollView>
-            </View>
-          )}
-
-          {/* Time Card */}
-          {timeData && (
-            <View style={styles.timeCard}>
-              <View style={styles.timeHeader}>
-                <Globe size={20} color="#3b82f6" />
-                <Text style={styles.timeTitle}>Local Time</Text>
-              </View>
-              <Text style={styles.localTime}>{timeData.localTime}</Text>
-              <Text style={styles.timezone}>{timeData.timezone}</Text>
-              <Text style={styles.utcOffset}>{timeData.utcOffset}</Text>
-            </View>
-          )}
-        </View>
-
         {/* Trip Overview */}
         <View style={styles.overviewCard}>
           <View style={styles.overviewHeader}>
@@ -939,109 +625,11 @@ const styles = StyleSheet.create({
     flex: 1,
     paddingHorizontal: 24,
   },
-  infoCardsContainer: {
-    flexDirection: 'row',
-    gap: 12,
-    marginTop: 20,
-  },
-  weatherCard: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-  },
-  weatherHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  weatherTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginLeft: 8,
-  },
-  currentWeather: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  weatherIcon: {
-    fontSize: 32,
-    marginRight: 12,
-  },
-  currentTemp: {
-    fontSize: 20,
-    fontWeight: 'bold',
-    color: '#f59e0b',
-  },
-  weatherCondition: {
-    fontSize: 12,
-    color: '#64748b',
-  },
-  forecastContainer: {
-    flexDirection: 'row',
-  },
-  forecastDay: {
-    alignItems: 'center',
-    marginRight: 16,
-  },
-  forecastDayLabel: {
-    fontSize: 10,
-    color: '#64748b',
-    marginBottom: 4,
-  },
-  forecastIcon: {
-    fontSize: 16,
-    marginBottom: 4,
-  },
-  forecastTemp: {
-    fontSize: 10,
-    fontWeight: '600',
-    color: '#1e293b',
-  },
-  timeCard: {
-    flex: 1,
-    backgroundColor: '#ffffff',
-    borderRadius: 16,
-    padding: 16,
-    borderWidth: 1,
-    borderColor: '#e2e8f0',
-    alignItems: 'center',
-  },
-  timeHeader: {
-    flexDirection: 'row',
-    alignItems: 'center',
-    marginBottom: 12,
-  },
-  timeTitle: {
-    fontSize: 14,
-    fontWeight: '600',
-    color: '#1e293b',
-    marginLeft: 8,
-  },
-  localTime: {
-    fontSize: 24,
-    fontWeight: 'bold',
-    color: '#3b82f6',
-    marginBottom: 4,
-  },
-  timezone: {
-    fontSize: 12,
-    color: '#64748b',
-    marginBottom: 2,
-  },
-  utcOffset: {
-    fontSize: 10,
-    color: '#94a3b8',
-  },
   overviewCard: {
     backgroundColor: '#ffffff',
     borderRadius: 16,
     padding: 20,
-    marginTop: 20,
+    marginTop: 24,
     borderWidth: 1,
     borderColor: '#e2e8f0',
   },
